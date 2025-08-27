@@ -11,7 +11,7 @@ import numpy as np
 from tqdm import tqdm
 
 from models.tts_lora import TTSWithLoRA
-from data.dataset import create_dataloader
+from data_loading.dataset import create_dataloader
 from training.losses import CombinedLoss
 from config import TrainingConfig
 
