@@ -54,6 +54,11 @@ torchaudio = [
     { index = "pytorch-windows", marker = "platform_system == 'Windows'" },
 ]
 
+[[tool.uv.index]]
+name = "pytorch-windows"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
 [project.urls]
 Homepage = "https://github.com/LatentForge/T2A-LoRA"
 Repository = "https://github.com/LatentForge/T2A-LoRA"
