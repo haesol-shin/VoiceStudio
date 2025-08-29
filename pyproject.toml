@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "LatentForge", email = "latentforge.org"}
+    {name = "LatentForge", email = "brew.airesearch@gmail.com"}
 ]
 keywords = ["text-to-speech", "lora", "hypernetworks", "voice-synthesis", "audio-generation"]
 classifiers = [
