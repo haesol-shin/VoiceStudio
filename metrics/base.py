@@ -169,3 +169,7 @@ class BaseMetricCalculator(ABC):
         if self.config.device == "auto":
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
         return torch.device(self.config.device)
+
+    def cleanup(self) -> None:
+        """Clean up resources if needed."""
+        pass
