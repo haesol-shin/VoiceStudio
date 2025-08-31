@@ -6,6 +6,7 @@ from typing import List, Tuple, Dict
 import numpy as np
 import torch
 import torchaudio
+from tqdm import tqdm
 
 from .base import BaseMetricCalculator, ModelConfig, MetricCalculationError
 
@@ -177,7 +178,7 @@ class SIMCalculator(BaseMetricCalculator):
             batch_size = self.config.batch_size
             all_paths_list = list(all_paths)
 
-            for i in range(0, len(all_paths_list), batch_size):
+            for i in tqdm(range(0, len(all_paths_list), batch_size), desc="Extracting embeddings"):
                 batch_paths = all_paths_list[i:i + batch_size]
 
                 for audio_path in batch_paths:
@@ -189,7 +190,7 @@ class SIMCalculator(BaseMetricCalculator):
 
             # Calculate similarities for all pairs
             results = []
-            for ref_path, syn_path in pairs:
+            for ref_path, syn_path in tqdm(pairs, desc="Calculating similarities"):
                 try:
                     ref_embedding = embeddings.get(ref_path)
                     syn_embedding = embeddings.get(syn_path)

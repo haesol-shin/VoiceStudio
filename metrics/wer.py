@@ -6,6 +6,7 @@ from typing import List, Tuple, Dict, Any
 import numpy as np
 import torch
 import jiwer
+from tqdm import tqdm
 
 from .base import BaseMetricCalculator, ModelConfig, MetricCalculationError
 
@@ -141,7 +142,7 @@ class WERCalculator(BaseMetricCalculator):
 
             self.logger.info(f"Transcribing {len(all_paths)} unique audio files")
 
-            for audio_path in all_paths:
+            for audio_path in tqdm(all_paths, desc="Transcribing audio files"):
                 try:
                     transcriptions[audio_path] = self.transcribe_audio(audio_path)
                 except Exception as e:
@@ -150,7 +151,7 @@ class WERCalculator(BaseMetricCalculator):
 
             # Calculate WER for all pairs
             results = []
-            for ref_path, syn_path in pairs:
+            for ref_path, syn_path in tqdm(pairs, desc="Calculating WER scores"):
                 try:
                     ref_text = transcriptions.get(ref_path, "")
                     syn_text = transcriptions.get(syn_path, "")

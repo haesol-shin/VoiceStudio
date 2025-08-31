@@ -11,6 +11,7 @@ import torchaudio
 import librosa
 import pyworld
 import pysptk
+from tqdm import tqdm
 
 from .base import BaseMetricCalculator, ModelConfig, MetricCalculationError
 
@@ -213,7 +214,7 @@ class MCDCalculator(BaseMetricCalculator):
 
             self.logger.info(f"Extracting MCEP features for {len(all_paths)} unique audio files")
 
-            for audio_path in all_paths:
+            for audio_path in tqdm(all_paths, desc="Extracting MCEP features"):
                 try:
                     mcep_features[audio_path] = self.extract_mcep(audio_path)
                 except Exception as e:
@@ -224,7 +225,7 @@ class MCDCalculator(BaseMetricCalculator):
             results = []
             use_dtw = self.config.additional_params.get('use_dtw', True)
 
-            for ref_path, syn_path in pairs:
+            for ref_path, syn_path in tqdm(pairs, desc="Calculating MCD scores"):
                 try:
                     ref_mcep = mcep_features.get(ref_path)
                     syn_mcep = mcep_features.get(syn_path)
