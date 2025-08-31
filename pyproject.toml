@@ -7,6 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
     "jiwer>=4.0.0",
     "librosa>=0.11.0",
+    "pandas>=2.3.2",
     "pysptk>=1.0.1",
     "pyworld>=0.3.5",
     "torch>=2.8.0",
