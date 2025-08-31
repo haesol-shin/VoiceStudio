@@ -4,7 +4,7 @@ Dataset loaders for synthesis pipeline.
 
 from .base import BaseSynthesisDataset
 from .vctk import VCTKSynthesisDataset
-from ..config import DatasetType
+from config import DatasetType
 
 
 # Dataset registry for factory pattern

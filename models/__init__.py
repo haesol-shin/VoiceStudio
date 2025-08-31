@@ -4,7 +4,7 @@ TTS models for synthesis pipeline.
 
 from .base import BaseSynthesizer
 from .xtts import XTTSSynthesizer
-from ..config import ModelType
+from config import ModelType
 
 
 # Model registry for factory pattern

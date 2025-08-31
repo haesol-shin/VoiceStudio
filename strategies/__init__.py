@@ -5,7 +5,7 @@ Generation strategies for synthesis pipeline.
 from .base import BaseGenerationStrategy
 from .method1 import Method1Strategy
 from .method2 import Method2Strategy
-from ..config import GenerationMethod
+from config import GenerationMethod
 
 
 # Strategy registry for factory pattern
