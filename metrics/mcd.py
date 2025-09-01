@@ -119,13 +119,13 @@ class MCDCalculator(BaseMetricCalculator):
             # Use DTW to align sequences (skip 0th coefficient)
             from librosa.sequence import dtw
 
-            min_cost, _ = dtw(
+            cost_matrix, warping_path = dtw(
                 ref_mcep[:, 1:].T,
                 syn_mcep[:, 1:].T,
                 metric=self.log_spec_dB_dist
             )
 
-            return np.mean(min_cost)
+            return cost_matrix[-1, -1] / len(warping_path)
 
         except Exception as e:
             raise MetricCalculationError(f"MCD DTW calculation failed: {e}")
