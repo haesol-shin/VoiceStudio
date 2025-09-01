@@ -162,7 +162,6 @@ class EvaluationPipeline:
             stats[f"{metric_name}_mean"] = np.mean(all_scores)
             stats[f"{metric_name}_std"] = np.std(all_scores)
             stats[f"{metric_name}_median"] = np.median(all_scores)
-            stats[f"{metric_name}_count"] = len(all_scores)
 
         return stats
 
@@ -179,7 +178,8 @@ class EvaluationPipeline:
 
             metric_name = metric_type.value
             all_scores = []
-            group_variances = []
+            group_stds = []
+            group_cvs = []
 
             # Calculate statistics for each reference group
             for ref_id, scores in ref_groups.items():
@@ -189,24 +189,32 @@ class EvaluationPipeline:
                 all_scores.extend(scores)
 
                 if len(scores) > 1:
-                    group_var = np.var(scores, ddof=1)  # Sample variance
-                    group_variances.append(group_var)
+                    group_std = np.std(scores, ddof=1)
+                    group_stds.append(group_std)
+
+                    mean_score = np.mean(scores)
+                    if mean_score > 0:
+                        cv = group_std / mean_score
+                        group_cvs.append(cv)
+
                 elif len(scores) == 1:
-                    group_variances.append(0.0)  # Single score: no variance
+                    group_stds.append(0.0)
+                    group_cvs.append(0.0)
 
             if not all_scores:
                 continue
 
             # Core statistics
             stats[f"{metric_name}_mean"] = np.mean(all_scores)
-            stats[f"{metric_name}_count"] = len(all_scores)
+            stats[f"{metric_name}_std"] = np.std(all_scores)
+            stats[f"{metric_name}_median"] = np.median(all_scores)
 
             # Speaker consistency metrics (core purpose of Method2)
-            if group_variances:
-                avg_variance = np.mean(group_variances)
-                stats[f"{metric_name}_avg_variance"] = avg_variance
-                stats[f"{metric_name}_variance_std"] = np.std(group_variances)
-                stats[f"{metric_name}_consistency"] = 1.0 / (1.0 + avg_variance)
+            if group_stds:
+                stats[f"{metric_name}_avg_std"] = np.mean(group_stds)
+
+            if group_cvs:
+                stats[f"{metric_name}_avg_cv"] = np.mean(group_cvs)
 
         return stats
 
