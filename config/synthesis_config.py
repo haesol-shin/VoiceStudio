@@ -23,9 +23,9 @@ class ModelConfig:
     device: str = "cuda"
     model_path: Optional[str] = None
     language: str = "en"
-    temperature: float = 0.75
-    top_k: int = 50
-    top_p: float = 0.85
+    temperature: float = 0.1
+    top_k: int = 10
+    top_p: float = 0.7
 
 
 @dataclass

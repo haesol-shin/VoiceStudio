@@ -34,7 +34,11 @@ class Method1Strategy(BaseGenerationStrategy):
         if len(sample_indices) < num_samples:
             print(f"Warning: Only {len(sample_indices)} samples available, requested {num_samples}")
 
-        success_count = 0
+        transcripts = []
+        output_paths = []
+        reference_audios = []
+        style_prompts = []
+        speaker_ids = []
 
         # Process each sample
         for i, sample_idx in enumerate(tqdm(sample_indices, desc="Generating Method1 pairs")):
@@ -54,21 +58,29 @@ class Method1Strategy(BaseGenerationStrategy):
                     print(f"Failed to copy reference audio for sample {i}")
                     continue
 
-                # Synthesize audio
-                if self.synthesizer.synthesize(
-                    text=transcript,
-                    output_path=syn_output_path,
-                    reference_audio=audio_path,
-                    style_prompt=style_prompt,
-                    speaker_id=speaker_id
-                ):
-                    success_count += 1
-                else:
-                    print(f"Failed to synthesize audio for sample {i}")
+                transcripts.append(transcript)
+                output_paths.append(syn_output_path)
+                reference_audios.append(audio_path)
+                style_prompts.append(style_prompt)
+                speaker_ids.append(speaker_id)
 
             except Exception as e:
                 print(f"Error processing sample {i}: {e}")
                 continue
+
+        # Synthesize audio in a batch
+        if self.synthesizer.synthesize(
+                text=transcripts,
+                output_path=output_paths,
+                reference_audio=reference_audios,
+                style_prompt=style_prompts,
+                speaker_id=speaker_ids
+        ):
+            success_count = len(output_paths)
+        else:
+            print(f"Failed to synthesize audio for batch")
+            success_count = 0
+
 
         print(f"Method 1 completed: {success_count}/{len(sample_indices)} pairs generated")
         return success_count > 0

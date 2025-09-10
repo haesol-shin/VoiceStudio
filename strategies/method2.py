@@ -56,24 +56,34 @@ class Method2Strategy(BaseGenerationStrategy):
                 set_dir = syn_dir / f"set_{ref_idx:03d}"
                 set_dir.mkdir(exist_ok=True)
 
-                set_success = 0
+                transcripts = []
+                output_paths = []
+                reference_audios = []
+                style_prompts = []
+                speaker_ids = []
 
                 # Generate multiple synthesis for this reference
                 for syn_idx in tqdm(range(syn_per_ref), desc=f"Set {ref_idx}", leave=False):
                     syn_filename = f"syn_{ref_idx:03d}_{syn_idx:02d}.wav"
                     syn_output_path = set_dir / syn_filename
 
-                    # Synthesize with same reference but potentially different randomness
-                    if self.synthesizer.synthesize(
-                        text=transcript,
-                        output_path=syn_output_path,
-                        reference_audio=audio_path,
-                        style_prompt=style_prompt,
-                        speaker_id=speaker_id
-                    ):
-                        set_success += 1
-                    else:
-                        print(f"Failed synthesis: set {ref_idx}, syn {syn_idx}")
+                    transcripts.append(transcript)
+                    output_paths.append(syn_output_path)
+                    reference_audios.append(audio_path)
+                    style_prompts.append(style_prompt)
+                    speaker_ids.append(speaker_id)
+
+                if self.synthesizer.synthesize(
+                        text=transcripts,
+                        output_path=output_paths,
+                        reference_audio=reference_audios,
+                        style_prompt=style_prompts,
+                        speaker_id=speaker_ids
+                ):
+                    set_success = len(output_paths)
+                else:
+                    print(f"Failed synthesis for batch: set {ref_idx}")
+                    set_success = 0
 
                 total_success += set_success
                 print(f"Set {ref_idx}: {set_success}/{syn_per_ref} synthesis generated")
