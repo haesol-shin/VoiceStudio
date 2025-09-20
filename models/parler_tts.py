@@ -21,7 +21,7 @@ class ParlerTTSSynthesizer(BaseSynthesizer):
         super().__init__(config)
         self.tokenizer = None
         self.sampling_rate = None
-        self.batch_size = 32
+        self.batch_size = 2
 
     def load_model(self) -> None:
         """Load Parler-TTS model and tokenizer."""
