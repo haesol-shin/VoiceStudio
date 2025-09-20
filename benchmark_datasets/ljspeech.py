@@ -5,6 +5,7 @@ Custom LJSpeech dataset loader for synthesis.
 import pandas as pd
 from pathlib import Path
 from typing import List, Tuple, Optional
+from torchvision.datasets.utils import download_and_extract_archive
 
 from .base import BaseSynthesisDataset
 
@@ -12,7 +13,10 @@ from .base import BaseSynthesisDataset
 class LJSpeechSynthesisDataset(BaseSynthesisDataset):
     """LJSpeech dataset loader that reads from local files directly."""
 
-    def __init__(self, config, root_dir: str = "./data", download: bool = False):
+    URL = "https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2"
+    ARCHIVE_FILENAME = "LJSpeech-1.1.tar.bz2"
+
+    def __init__(self, config, root_dir: str = "./data", download: bool = True):
         """
         Initializes the dataset loader. The `download` parameter is ignored.
 
@@ -26,11 +30,26 @@ class LJSpeechSynthesisDataset(BaseSynthesisDataset):
         self.wavs_path = self.dataset_path / "wavs"
         self._speaker_id = "ljspeech_speaker"
         self.metadata = None
+
         self.load_dataset()
 
     def load_dataset(self) -> None:
         """Load LJSpeech dataset from the metadata.csv file."""
+
+        if not self.dataset_path.exists():
+            if self.download:
+                print(f"INFO: Dataset not found locally. Downloading and extracting to {self.root_dir}...")
+                download_and_extract_archive(
+                    self.URL,
+                    download_root=self.root_dir,
+                    filename=self.ARCHIVE_FILENAME,
+                )
+            else:
+                raise FileNotFoundError(f"LJSpeech dataset not found at {self.dataset_path}. Set download=True to download it.")
+
         metadata_file = self.dataset_path / "metadata.csv"
+        if not metadata_file.exists():
+            raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
 
         try:
             self.metadata = pd.read_csv(

@@ -23,9 +23,9 @@ class ModelConfig:
     device: str = "cuda"
     model_path: Optional[str] = None
     language: str = "en"
-    temperature: float = 0.75
-    top_k: int = 50
-    top_p: float = 0.85
+    temperature: float = 0.1
+    top_k: int = 10
+    top_p: float = 0.7
 
 
 @dataclass
@@ -43,13 +43,16 @@ class SynthesisConfig:
     def __init__(self):
         # Dataset configurations
         self.datasets = {
-            "vctk": DatasetConfig(name="vctk", sample_rate=22050),
+            "vctk": DatasetConfig(name="vctk", sample_rate=48000),
             "ljspeech": DatasetConfig(name="ljspeech", sample_rate=22050),
+            "libritts": DatasetConfig(name="libritts", sample_rate=24000),
         }
 
         # Model configurations
         self.models = {
             "xtts_v2": ModelConfig(name="xtts_v2"),
+            "parler_tts_mini_v1": ModelConfig(name="parler_tts_mini_v1"),
+            "higgs_v2": ModelConfig(name="higgs_v2"),
         }
 
         # Generation configuration

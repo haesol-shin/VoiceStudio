@@ -4,12 +4,16 @@ TTS models for synthesis pipeline.
 
 from .base import BaseSynthesizer
 from .xtts import XTTSSynthesizer
+from .parler_tts import ParlerTTSSynthesizer
+from .higgs_v2 import HiggsV2Synthesizer
 from config import ModelType
 
 
 # Model registry for factory pattern
 MODEL_REGISTRY = {
     ModelType.XTTS_V2: XTTSSynthesizer,
+    ModelType.PARLER_TTS_MINI_V1: ParlerTTSSynthesizer,
+    ModelType.HIGGS_V2: HiggsV2Synthesizer,
 }
 
 
@@ -42,6 +46,8 @@ def get_available_models():
 __all__ = [
     "BaseSynthesizer",
     "XTTSSynthesizer",
+    "ParlerTTSSynthesizer",
+    "HiggsV2Synthesizer",
     "MODEL_REGISTRY",
     "create_synthesizer",
     "get_available_models"

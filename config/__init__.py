@@ -14,10 +14,13 @@ class DatasetType(Enum):
     """Supported dataset types."""
     VCTK = "vctk"
     LJSPEECH = "ljspeech"
+    LIBRITTS = "libritts"
 
 class ModelType(Enum):
     """Supported model types."""
     XTTS_V2 = "xtts_v2"
+    PARLER_TTS_MINI_V1 = "parler_tts_mini_v1"
+    HIGGS_V2 = "higgs_v2"
 
 class GenerationMethod(Enum):
     """Generation method types."""
