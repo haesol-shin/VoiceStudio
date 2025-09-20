@@ -49,6 +49,14 @@ dependencies = [
     "matplotlib>=3.10.5",
 ]
 
+[project.optional-dependencies]
+metrics = [
+    "jiwer>=4.0.0",
+    "pysptk>=1.0.1",
+    "pyworld>=0.3.5",
+    "pandas>=2.3.2",
+]
+
 [tool.uv.sources]
 torch = [
     { index = "pytorch-windows", marker = "platform_system == 'Windows'" },
