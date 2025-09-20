@@ -88,9 +88,9 @@ class BaseMetricCalculator(ABC):
         pass
 
     def calculate_batch(
-            self,
-            pairs: List[Tuple[Path, Path]],
-            progress_callback: Optional[Callable[[int, int], None]] = None
+        self,
+        pairs: List[Tuple[Path, Path]],
+        progress_callback: Optional[Callable[[int, int], None]] = None
     ) -> List[float]:
         """
         Calculate metric for multiple pairs with progress tracking.
