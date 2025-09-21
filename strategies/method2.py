@@ -30,8 +30,20 @@ class Method2Strategy(BaseGenerationStrategy):
         num_refs = self.config.generation.method2_ref_samples
         syn_per_ref = self.config.generation.method2_syn_per_ref
 
-        sample_indices = self.dataset.select_samples(num_refs)
-        sample_indices = self.dataset.filter_by_duration(sample_indices)
+        initial_samples_to_check = self.dataset.select_samples(num_refs * 5)
+        initial_samples_to_check = self.dataset.filter_by_duration(initial_samples_to_check)
+
+        sample_indices = []
+        used_speakers = set()
+        for sample_idx in initial_samples_to_check:
+            if len(sample_indices) >= num_refs:
+                break
+
+            _, _, _, speaker_id = self.dataset.get_sample(sample_idx)
+
+            if speaker_id not in used_speakers:
+                used_speakers.add(speaker_id)
+                sample_indices.append(sample_idx)
 
         if len(sample_indices) < num_refs:
             print(f"Warning: Only {len(sample_indices)} samples available, requested {num_refs}")
