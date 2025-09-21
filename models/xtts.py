@@ -35,20 +35,19 @@ class XTTSSynthesizer(BaseSynthesizer):
 
     def synthesize(
         self,
-        text: List[str],
-        output_path: List[Path],
-        reference_audio: List[Path],
-        style_prompt: List[Optional[str]],
-        speaker_id: List[Optional[str]]
+        text: str,
+        output_path: Path,
+        reference_audio: Path = None,
+        style_prompt: Optional[str] = None,
+        speaker_id: Optional[str] = None
     ) -> bool:
         """Synthesize speech using XTTS voice cloning.
 
-        Args:
-            text: List of texts to synthesize
-            output_path: List of paths to save synthesized audio
-            reference_audio: List of paths to reference audio for voice cloning
-            style_prompt: List of optional style prompts (unused in XTTS)
-            speaker_id: List of optional speaker identifiers (unused in XTTS)
+        text: Text to synthesize
+            output_path: Path to save synthesized audio
+            reference_audio: Path to reference audio for voice cloning
+            style_prompt: Optional style prompt (unused in XTTS)
+            speaker_id: Optional speaker identifier (unused in XTTS)
 
         Returns:
             True if successful, False otherwise
@@ -56,35 +55,25 @@ class XTTSSynthesizer(BaseSynthesizer):
         if not self.is_loaded:
             self.load_model()
 
-        is_batch = isinstance(text, list)
-        if not is_batch:
-            text = [text]
-            output_path = [output_path]
-            reference_audio = [reference_audio]
-            style_prompt = [style_prompt] if style_prompt else [None]
-            speaker_id = [speaker_id] if speaker_id else [None]
-
-        if style_prompt is None:
-            style_prompt = [None] * len(text)
-
         try:
-            for i in tqdm(range(len(text)), desc="Synthesizing..."):
-                current_output_path = output_path[i]
-                current_output_path.parent.mkdir(parents=True, exist_ok=True)
+            # Ensure output directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
-                self.model.tts_to_file(
-                    text=text[i],
-                    speaker_wav=str(reference_audio[i]),
-                    language=self.config.language,
-                    file_path=str(current_output_path),
-                    temperature=self.config.temperature,
-                    top_k=self.config.top_k,
-                    top_p=self.config.top_p
-                )
+            # Generate speech with voice cloning
+            self.model.tts_to_file(
+                text=text,
+                speaker_wav=str(reference_audio),
+                language=self.config.language,
+                file_path=str(output_path),
+                temperature=self.config.temperature,
+                top_k=self.config.top_k,
+                top_p=self.config.top_p
+            )
 
-                if not current_output_path.exists() or current_output_path.stat().st_size == 0:
-                    print(f"Warning: Output file {current_output_path} was not created or is empty")
-
+            # Verify output file was created
+            if not output_path.exists() or output_path.stat().st_size == 0:
+                print(f"Warning: Output file {output_path} was not created or is empty")
+                return False
             return True
 
         except Exception as e:

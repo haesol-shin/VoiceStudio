@@ -23,20 +23,20 @@ class BaseSynthesizer(ABC):
     @abstractmethod
     def synthesize(
         self,
-        text: List[str],
-        output_path: List[Path],
-        reference_audio: List[Optional[Path]],
-        style_prompt: List[Optional[str]],
-        speaker_id: List[Optional[str]]
+        text: str,
+        output_path: Path,
+        reference_audio: Optional[Path] = None,
+        style_prompt: Optional[str] = None,
+        speaker_id: Optional[str] = None
     ) -> bool:
         """Synthesize speech from text using reference audio or style prompt.
 
         Args:
-            text: List of texts to synthesize
-            output_path: List of paths to save synthesized audio
-            reference_audio: List of paths to reference audio for voice cloning
-            style_prompt: List of optional style prompts for synthesis
-            speaker_id: List of optional speaker identifiers
+            text: Text to synthesize
+            output_path: Path to save synthesized audio
+            reference_audio: Optional Path to reference audio for voice cloning
+            style_prompt: Optional style prompt for synthesis
+            speaker_id: Optional speaker identifier
 
         Returns:
             True if successful, False otherwise

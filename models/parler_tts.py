@@ -21,7 +21,6 @@ class ParlerTTSSynthesizer(BaseSynthesizer):
         super().__init__(config)
         self.tokenizer = None
         self.sampling_rate = None
-        self.batch_size = 2
 
     def load_model(self) -> None:
         """Load Parler-TTS model and tokenizer."""
@@ -43,77 +42,47 @@ class ParlerTTSSynthesizer(BaseSynthesizer):
             raise RuntimeError(f"Failed to load Parler-TTS model: {e}")
 
     def synthesize(
-        self,
-        text: List[str],
-        output_path: List[Path],
-        reference_audio: List[Optional[Path]],
-        style_prompt: List[str],
-        speaker_id: List[Optional[str]]
+            self,
+            text: str,
+            output_path: Path,
+            reference_audio: Optional[Path] = None,
+            style_prompt: Optional[str] = None,
+            speaker_id: Optional[str] = None
     ) -> bool:
         """Synthesize speech using Parler-TTS.
 
         Args:
-            text: List of texts to synthesize (prompt)
-            output_path: List of paths to save synthesized audio
-            reference_audio: List of paths to reference audio (unused in Parler-TTS)
-            style_prompt: List of optional style prompts (used as description)
-            speaker_id: List of optional speaker identifiers (unused in Parler-TTS)
+            text: Text to synthesize (prompt).
+            output_path: Path to save synthesized audio.
+            reference_audio: Optional Path to reference audio (unused in Parler-TTS).
+            style_prompt: Optional style prompt (used as description).
+            speaker_id: Optional speaker identifier (unused).
 
         Returns:
-            True if successful, False otherwise
+            True if successful, False otherwise.
         """
         if not self.is_loaded:
             self.load_model()
 
         try:
-            is_batch = isinstance(text, list)
-            if not is_batch:
-                text = [text]
-                output_path = [output_path]
-                style_prompt = [style_prompt]
+            # Ensure output directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            if style_prompt is None:
-                style_prompt = [DEFAULT_DESCRIPTION] * len(text)
+            prompt = text
+            description = style_prompt if style_prompt else DEFAULT_DESCRIPTION
 
-            if len(style_prompt) != len(text):
-                style_prompt = [style_prompt[0]] * len(text)
+            input_ids = self.tokenizer(description, return_tensors="pt").input_ids.to(self.config.device)
+            prompt_input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids.to(self.config.device)
 
-            for i in tqdm(range(0, len(text), self.batch_size), desc=f"Generating in batches of {self.batch_size}"):
-                batch_texts = text[i:i+self.batch_size]
-                batch_output_paths = output_path[i:i+self.batch_size]
-                batch_style_prompts = style_prompt[i:i+self.batch_size]
+            generation = self.model.generate(input_ids=input_ids, prompt_input_ids=prompt_input_ids)
+            audio_arr = generation.cpu().numpy().squeeze()
 
-                # Ensure output directories exist
-                for path in batch_output_paths:
-                    path.parent.mkdir(parents=True, exist_ok=True)
+            sf.write(str(output_path), audio_arr, self.sampling_rate)
 
-                # Tokenize batch
-                inputs = self.tokenizer(batch_style_prompts, return_tensors="pt", padding=True).to(self.config.device)
-                prompt_input_ids = self.tokenizer(batch_texts, return_tensors="pt", padding=True).to(self.config.device)
-
-                torch.manual_seed(42)
-                if torch.cuda.is_available():
-                    torch.cuda.manual_seed(42)
-                    torch.cuda.manual_seed_all(42)
-
-                # Generate for the current batch
-                generation = self.model.generate(
-                    input_ids=inputs.input_ids,
-                    attention_mask=inputs.attention_mask,
-                    prompt_input_ids=prompt_input_ids.input_ids,
-                    prompt_attention_mask=prompt_input_ids.attention_mask,
-                    do_sample=False,
-                    num_beams=1,
-                    return_dict_in_generate=True,
-                )
-
-                # Save audio files for the current batch
-                for j in range(len(batch_texts)):
-                    audio_arr = generation.sequences[j, :generation.audios_length[j]]
-                    sf.write(str(batch_output_paths[j]), audio_arr.cpu().numpy().squeeze(), self.sampling_rate)
-
-                    if not batch_output_paths[j].exists() or batch_output_paths[j].stat().st_size == 0:
-                        print(f"Warning: Output file {batch_output_paths[j]} was not created or is empty")
+            # Verify output file was created
+            if not output_path.exists() or output_path.stat().st_size == 0:
+                print(f"Warning: Output file {output_path} was not created or is empty")
+                return False
 
             return True
 
