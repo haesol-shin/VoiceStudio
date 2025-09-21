@@ -19,9 +19,8 @@ from transformers.models.llama.modeling_llama import (
     LlamaDecoderLayer,
     LlamaRMSNorm,
     LlamaRotaryEmbedding,
-    LLAMA_ATTENTION_CLASSES,
+    LlamaAttention,
     LlamaMLP,
-    LlamaRMSNorm,
 )
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.cache_utils import Cache, DynamicCache, StaticCache
@@ -401,13 +400,13 @@ class HiggsAudioDualFFNDecoderLayer(nn.Module):
         text_config = config.text_config
         self.hidden_size = text_config.hidden_size
         self.layer_idx = layer_idx
-        self.self_attn = LLAMA_ATTENTION_CLASSES[config._attn_implementation](config=text_config, layer_idx=layer_idx)
+        self.self_attn = LlamaAttention(config=text_config, layer_idx=layer_idx)
 
         self.mlp = LlamaMLP(text_config)
 
         if not fast_forward:
             if use_audio_attention:
-                self.audio_attn = LLAMA_ATTENTION_CLASSES[config._attn_implementation](
+                self.audio_attn = LlamaAttention(
                     config=text_config, layer_idx=layer_idx + 1
                 )
                 self.audio_post_audio_attn_layer_norm = LlamaRMSNorm(

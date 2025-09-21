@@ -6,6 +6,7 @@ from .base import BaseSynthesizer
 from .xtts import XTTSSynthesizer
 from .parler_tts import ParlerTTSSynthesizer
 from .higgs_v2 import HiggsV2Synthesizer
+from .dia_tts import DiaSynthesizer
 from config import ModelType
 
 
@@ -14,6 +15,7 @@ MODEL_REGISTRY = {
     ModelType.XTTS_V2: XTTSSynthesizer,
     ModelType.PARLER_TTS_MINI_V1: ParlerTTSSynthesizer,
     ModelType.HIGGS_V2: HiggsV2Synthesizer,
+    ModelType.DIA_TTS: DiaSynthesizer,
 }
 
 
@@ -48,6 +50,7 @@ __all__ = [
     "XTTSSynthesizer",
     "ParlerTTSSynthesizer",
     "HiggsV2Synthesizer",
+    "DiaSynthesizer",
     "MODEL_REGISTRY",
     "create_synthesizer",
     "get_available_models"
