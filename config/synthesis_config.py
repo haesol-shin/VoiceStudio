@@ -54,6 +54,7 @@ class SynthesisConfig:
             "parler_tts_mini_v1": ModelConfig(name="parler_tts_mini_v1"),
             "higgs_v2": ModelConfig(name="higgs_v2"),
             "dia_tts": ModelConfig(name="dia_tts"),
+            "chatterbox_tts": ModelConfig(name="chatterbox_tts"),
         }
 
         # Generation configuration

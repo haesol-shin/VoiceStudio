@@ -150,9 +150,9 @@ def main():
 
     pipeline.setup_dataset(DatasetType.LIBRITTS)
 
-    pipeline.setup_model(ModelType.DIA_TTS)
+    pipeline.setup_model(ModelType.CHATTERBOX_TTS)
 
-    pipeline.run_generation(DatasetType.LIBRITTS, ModelType.DIA_TTS, [GenerationMethod.METHOD1, GenerationMethod.METHOD2])
+    pipeline.run_generation(DatasetType.LIBRITTS, ModelType.CHATTERBOX_TTS, [GenerationMethod.METHOD1, GenerationMethod.METHOD2])
 
 
 if __name__ == "__main__":

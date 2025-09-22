@@ -22,6 +22,7 @@ class ModelType(Enum):
     PARLER_TTS_MINI_V1 = "parler_tts_mini_v1"
     HIGGS_V2 = "higgs_v2"
     DIA_TTS = "dia_tts"
+    CHATTERBOX_TTS = "chatterbox_tts"
 
 class GenerationMethod(Enum):
     """Generation method types."""
