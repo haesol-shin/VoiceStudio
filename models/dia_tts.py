@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 import torch
 import torchaudio
+import numpy as np
 from .base import BaseSynthesizer
 
 class DiaSynthesizer(BaseSynthesizer):
@@ -15,6 +16,8 @@ class DiaSynthesizer(BaseSynthesizer):
         super().__init__(config)
         self.processor = None
         self.sampling_rate = 44100  # Dia-TTS default sampling rate
+        self.min_audio_duration = 6.0
+        self.max_audio_duration = 20.0
 
     def load_model(self) -> None:
         """Load Dia-TTS model and processor."""
@@ -65,31 +68,65 @@ class DiaSynthesizer(BaseSynthesizer):
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Load and process reference audio
-            audio_waveform, sr = torchaudio.load(reference_audio)
+            waveform, sample_rate = torchaudio.load(str(reference_audio))
+            original_duration = waveform.shape[1] / sample_rate
 
-            if audio_waveform.shape[1] == 0:
-                print(f"Warning: Reference audio is empty, skipping synthesis. Path: {reference_audio}")
-                return False
+            # Resample if needed
+            if sample_rate != self.sampling_rate:
+                waveform = torchaudio.transforms.Resample(sample_rate, self.sampling_rate)(waveform)
 
+            # Convert to mono
+            if waveform.shape[0] > 1:
+                waveform = torch.mean(waveform, dim=0, keepdim=True)
 
-            if sr != self.sampling_rate:
-                resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=self.sampling_rate)
-                audio_waveform = resampler(audio_waveform)
+            current_duration = waveform.shape[1] / self.sampling_rate
+            repeat_count = 1
 
-            input_text = [f"[S1] {text} [S2] {text}"]
+            # Pad short audios by repeating with short silence
+            if current_duration < self.min_audio_duration:
+                target_samples = int(self.min_audio_duration * self.sampling_rate)
+
+                repeat_count = (target_samples - 1) // waveform.shape[1]
+
+                silence_duration = 0.1
+                silence_samples = int(silence_duration * self.sampling_rate)
+                silence = torch.zeros(1, silence_samples)
+
+                repeated_waveform = []
+                for _ in range(repeat_count):
+                    repeated_waveform.append(waveform)
+                    repeated_waveform.append(silence)
+                waveform = torch.cat(repeated_waveform, dim=1)[:, :target_samples]
+
+            # Trim long audios
+            elif current_duration > self.max_audio_duration:
+                target_samples = int(self.max_audio_duration * self.sampling_rate)
+                waveform = waveform[:, :target_samples]
+                print(f"[Dia Debug] Trimmed input from {original_duration:.2f}s to {self.max_audio_duration:.2f}s")
+
+            # Repeat S1 text according to repeat_count
+            s1_text = " ".join([text] * repeat_count)
+            print(repeat_count)
+            input_text = [f"[S1] {s1_text} [S2] {text}"]
 
             inputs = self.processor(
                 text=input_text,
-                audio=audio_waveform.squeeze().numpy(),
+                audio=waveform.squeeze().numpy(),
                 sampling_rate=self.sampling_rate,
                 padding=True,
                 return_tensors="pt"
             ).to(self.config.device)
 
+            estimated_tokens = len(text.split()) * 40
+            max_tokens = min(estimated_tokens, 1536)
             prompt_len = self.processor.get_audio_prompt_len(inputs["decoder_attention_mask"])
 
             # Generate audio
-            outputs = self.model.generate(**inputs, max_new_tokens=prompt_len + 128)
+            with torch.cuda.amp.autocast(enabled=True):
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=max_tokens,
+                )
 
             # Decode and save audio
             decoded_outputs = self.processor.batch_decode(outputs, audio_prompt_len=prompt_len)

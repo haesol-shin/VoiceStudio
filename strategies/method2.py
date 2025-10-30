@@ -49,14 +49,14 @@ class Method2Strategy(BaseGenerationStrategy):
             print(f"Warning: Only {len(sample_indices)} samples available, requested {num_refs}")
 
         comparison_texts = [
-            "But what was it?",
-            "Bessy was silent in her turn for a minute or two.",
-            "One afternoon she met Bessy Higgins in the street, and stopped to speak to her.",
+            "At least, no friend came forwards immediately, and mrs Thornton is not one, I fancy, to wait till tardy kindness comes to find her out.",
+            "And the poor men around him-they were poor because they were vicious-out of the pale of his sympathies because they had not his iron nature, and the capabilities that it gives him for being rich.'",
+            "The modes of treatment may be ranged under three heads: (one) To eliminate the poison; (two) to antagonize its action; (three) to avert the tendency to death.",
             "Visiting register offices, seeing all manner of unlikely people, and very few in the least likely, absorbed Margaret's time and thoughts for several days.",
             "But though she received caresses and fond words back again, in such profusion as would have gladdened her formerly, yet she felt that there was a secret withheld from her, and she believed it bore serious reference to her mother's health.",
             "And the poor men around him-they were poor because they were vicious-out of the pale of his sympathies because they had not his iron nature, and the capabilities that it gives him for being rich.",
             "mr Bell said they absolutely lived upon water porridge for years-how, he did not know; but long after the creditors had given up hope of any payment of old mr Thornton's debts (if, indeed, they ever had hoped at all about it, after his suicide,) this young man returned to Milton, and went quietly round to each creditor, paying him the first instalment of the money owing to him.",
-            "I knew it all along from mr Bell; so I was aware of what was coming; but I half expected to see you get up and leave the room.'",
+            "In using the elastic stomach tube, some fluid should be introduced into the stomach before attempting to empty it, or a portion of the mucous membrane may be sucked into the aperture.",
             "'Margaret!' said mr Hale, as he returned from showing his guest downstairs; 'I could not help watching your face with some anxiety, when mr Thornton made his confession of having been a shop boy.",
         ]
 
