@@ -152,7 +152,11 @@ def main():
 
     pipeline.setup_model(ModelType.PARLER_TTS_MINI_V1)
 
-    pipeline.run_generation(DatasetType.LIBRITTS, ModelType.PARLER_TTS_MINI_V1, [GenerationMethod.METHOD1, GenerationMethod.METHOD2])
+    pipeline.run_generation(
+        DatasetType.LIBRITTS,
+        ModelType.PARLER_TTS_MINI_V1,
+        [GenerationMethod.METHOD3]
+    )
 
 
 if __name__ == "__main__":

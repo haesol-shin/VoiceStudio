@@ -5,6 +5,7 @@ Generation strategies for synthesis pipeline.
 from .base import BaseGenerationStrategy
 from .method1 import Method1Strategy
 from .method2 import Method2Strategy
+from .method3 import Method3Strategy
 from config import GenerationMethod
 
 
@@ -12,6 +13,7 @@ from config import GenerationMethod
 STRATEGY_REGISTRY = {
     GenerationMethod.METHOD1: Method1Strategy,
     GenerationMethod.METHOD2: Method2Strategy,
+    GenerationMethod.METHOD3: Method3Strategy,
 }
 
 
@@ -52,6 +54,7 @@ __all__ = [
     "BaseGenerationStrategy",
     "Method1Strategy",
     "Method2Strategy",
+    "Method3Strategy",
     "STRATEGY_REGISTRY",
     "create_strategy",
     "get_available_strategies"

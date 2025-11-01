@@ -71,6 +71,23 @@ class EvaluationPipeline:
 
                 for syn_file in other_syn_files:
                     pairs.append((consistency_ref_file, syn_file, ref_index))
+
+        elif method == GenerationMethod.METHOD3:
+            set_dirs = sorted(d for d in syn_base.iterdir() if d.is_dir() and d.name.startswith('set_'))
+
+            for set_dir in set_dirs:
+                ref_index = set_dir.stem.split('_')[1]
+                syn_files = sorted(set_dir.glob("syn_*.wav"))
+
+                if len(syn_files) < 3:
+                    print(f"Warning: Skipping {set_dir} for METHOD3, found {len(syn_files)} files (need 3: T1, T2, T3).")
+                    continue
+
+                consistency_ref_file = syn_files[0]
+                other_syn_files = syn_files[1:]
+
+                for syn_file in other_syn_files:
+                    pairs.append((consistency_ref_file, syn_file, ref_index))
         return pairs
 
     @staticmethod
@@ -240,7 +257,7 @@ class EvaluationPipeline:
             metric_types = [MetricType.UTMOS, MetricType.WER, MetricType.SIM, MetricType.FFE, MetricType.MCD]
 
         if methods is None:
-            methods = [GenerationMethod.METHOD1, GenerationMethod.METHOD2]
+            methods = [GenerationMethod.METHOD1, GenerationMethod.METHOD2, GenerationMethod.METHOD3]
 
         results = {}
 
@@ -330,9 +347,12 @@ def main():
     """Main evaluation function."""
     evaluator = EvaluationPipeline()
 
+    methods_to_run = [GenerationMethod.METHOD1, GenerationMethod.METHOD2, GenerationMethod.METHOD3]
+
     results = evaluator.evaluate_dataset_model(
         dataset_type=DatasetType.LIBRITTS,
         model_type=ModelType.PARLER_TTS_MINI_V1,
+        methods=methods_to_run
     )
 
     # Save results

@@ -28,6 +28,7 @@ class GenerationMethod(Enum):
     """Generation method types."""
     METHOD1 = "method1"  # 100 1:1 pairs
     METHOD2 = "method2"  # 10 refs × 10 syn each
+    METHOD3 = "method3"
 
 __all__ = [
     "DatasetConfig",
