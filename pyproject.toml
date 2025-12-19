@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "t2a-lora"
-version = "0.1.0"
+version = "1.0.0"
 description = "T2A-LoRA: Text-to-Audio LoRA Generation via Hypernetworks for Real-time Voice Adaptation"
 readme = "README.md"
 requires-python = ">=3.11"
