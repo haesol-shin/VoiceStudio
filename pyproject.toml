@@ -61,6 +61,9 @@ name = "pytorch-windows"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
+[tool.flit.module]
+name = "t2a_lora"
+
 [project.urls]
 Homepage = "https://github.com/LatentForge/T2A-LoRA"
 Repository = "https://github.com/LatentForge/T2A-LoRA"
