@@ -1,40 +1,87 @@
-# T2A-LoRA: Text-to-Audio LoRA Generation via Hypernetworks for Real-time Voice Adaptation
+# VoiceStudio
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red.svg)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![arXiv](https://img.shields.io/badge/arXiv-2501.XXXXX-b31b1b.svg)](https://arxiv.org/abs/2501.XXXXX)
 
-> **T2A-LoRA** is a novel approach for real-time voice adaptation in text-to-speech systems using hypernetworks to generate LoRA weights from natural language descriptions and audio features.
+Your Complete Voice Adaptation Research Workspace
 
-## 🚀 Key Features
+---
 
+## 🎯 Overview
+
+VoiceStudio is a unified toolkit for **text-style prompted speech synthesis**, enabling instant voice adaptation and editing through natural language descriptions. Built on cutting-edge research in voice style prompting, LoRA adaptation, and language-audio models.
+
+**Key Features:**
 - **Text-Conditional Generation**: Generate voice characteristics using natural language descriptions like "young female voice with warm tone"
 - **Multimodal Input**: Support both text descriptions and audio feature vectors
-- **Real-time Adaptation**: Generate LoRA weights in a single forward pass without fine-tuning
+- **Voice Editing**: Modify existing voices with simple instructions (Future Work)
+- **Instant Adaptation**: Generate LoRA weights in a single forward pass without fine-tuning
+- **Architecture Agnostic**: Works with multiple TTS architectures
 - **Zero-shot Generalization**: Adapt to unseen voice characteristics not present in training data
 - **Parameter Efficiency**: Minimal computational overhead compared to full model fine-tuning
-- **Multilingual Support**: Korean and English text descriptions supported
+
+---
+
+## 🆕 What's New
+
+**v1.3.0** (Coming 2027)
+- 🎉 LAM (Language-Audio Model) integration
+- ✨ Voice editing capabilities
+- 🔥 Instruction following for voice manipulation
+
+**v1.2.0** (2026)
+- ⚡ Real-time LoRA generation
+- 🎯 CLAP-based text-to-audio adaptation
+- 🏗️ Architecture-agnostic design
+
+**v1.1.0** (2026)
+- 🔍 Speaker consistency analysis tools
+- 🎨 BOS token P-tuning
+- 📊 Attention visualization
+
+---
+
+## 📈 Roadmap
+
+### v1.1.0 (Q1 2026) ✅
+- [x] Speaker consistency analysis
+- [x] Attention visualization
+- [x] BOS P-tuning
+- [x] WebUI interface
+
+### v1.2.0 (Q3 2026) 🔄
+- [ ] CLAP-based LoRA generation
+- [ ] Multi-TTS support
+- [ ] HuggingFace Hub integration
+- [ ] Comprehensive documentation
+
+### v1.3.0 (Q1 2027) 📋
+- [ ] LAM model release
+- [ ] Voice editing capabilities
+- [ ] Advanced instruction following
+
+---
 
 ## 🛠️ Installation
 
-### From PyPI (Coming Soon)
+### From PyPI (Recommended)
 ```bash
-uv add t2a-lora
+uv add voicestudio[all]  # Install with all available base TTS models
 ```
 
 ### From Source
 ```bash
-git clone https://github.com/LatentForge/T2A-LoRA.git
-cd T2A-LoRA
-uv pip install -e .
+git clone https://github.com/LatentForge/voicestudio.git
+cd voicestudio
+uv pip install -e ".[all]"
 ```
 
 ### Development Installation
 ```bash
-git clone https://github.com/LatentForge/T2A-LoRA.git
-cd T2A-LoRA
-uv pip install -e ".[dev,docs,audio]"
+git clone https://github.com/LatentForge/voicestudio.git
+cd voicestudio
+uv pip install -e ".[all,web]"
 ```
 
 ### Building and Publishing
@@ -42,14 +89,85 @@ uv pip install -e ".[dev,docs,audio]"
 # Build package
 uv build
 
-# Install build dependencies
-uv add --dev build twine
-
 # Upload to PyPI
-twine upload dist/*
+uv publish
 ```
 
 ## 📖 Quick Start
+
+### 1. Text-to-LoRA Generation (v1.0+)
+
+Generate LoRA weights from text descriptions:
+
+```python
+from voicestudio import LoRAGenerator
+
+# Initialize generator
+generator = LoRAGenerator.from_pretrained("voicestudio/t2a-lora-base")
+
+# Generate LoRA from text description
+lora_weights = generator("warm, cheerful voice of a young female")
+
+# Apply to your TTS model
+tts_model.load_lora(lora_weights)
+audio = tts_model.synthesize("Hello, how are you today?")
+```
+
+### 2. Voice Editing with LAM (v2.0+)
+
+Edit existing voices with instructions:
+
+```python
+from voicestudio import VoiceEditor
+
+# Initialize editor
+editor = VoiceEditor.from_pretrained("voicestudio/lam-base")
+
+# Edit voice characteristics
+edited_audio = editor.edit(
+    audio=input_audio,
+    instruction="make the voice deeper and more authoritative"
+)
+```
+
+### 3. Pipeline API (Easy Mode)
+
+```python
+from voicestudio import pipeline
+
+# Text-to-LoRA pipeline
+lora_gen = pipeline("text-to-lora", model="voicestudio/t2a-lora-base")
+lora = lora_gen("calm and soothing voice")
+
+# Voice editing pipeline
+editor = pipeline("voice-editing", model="voicestudio/lam-base")
+edited = editor(audio, instruction="add a slight echo effect")
+```
+
+### 4. Analysis Tools (v0.1+)
+
+Analyze speaker consistency issues:
+
+```python
+from voicestudio import ConsistencyAnalyzer
+
+analyzer = ConsistencyAnalyzer()
+
+# Visualize attention patterns
+analyzer.visualize_attention(
+    model=tts_model,
+    text_prompt="warm voice",
+    save_path="attention_map.png"
+)
+
+# Measure speaker consistency
+consistency_score = analyzer.measure_consistency(
+    model=tts_model,
+    text_prompt="cheerful voice",
+    num_samples=10
+)
+print(f"Consistency: {consistency_score:.2f}")
+```
 
 ### Basic Usage
 
@@ -100,6 +218,8 @@ lora_adapters = generator.generate_lora_adapters(
 )
 ```
 
+---
+
 ## 🎯 Command Line Interface
 
 ### Training a Model
@@ -142,7 +262,7 @@ t2a-evaluate --model ./models/my_model \
              --output ./evaluation_results
 ```
 
-### Interactive Demo
+### Interactive Web Demo
 ```bash
 # Interactive mode
 t2a-demo --model ./models/my_model --interactive
@@ -152,6 +272,153 @@ t2a-demo --model ./models/my_model \
          --text "friendly customer service voice" \
          --text "dramatic narrator voice"
 ```
+
+---
+
+## 📚 Advanced Usage
+
+### Custom TTS Model Integration
+
+VoiceStudio supports any TTS model through a simple adapter interface:
+
+```python
+from voicestudio import TTSAdapter, LoRAGenerator
+
+# Wrap your TTS model
+class MyTTSAdapter(TTSAdapter):
+    def __init__(self, model):
+        self.model = model
+    
+    def get_lora_target_modules(self):
+        return ["attention.q_proj", "attention.v_proj"]
+    
+    def forward(self, text, lora_weights=None):
+        if lora_weights:
+            self.apply_lora(lora_weights)
+        return self.model(text)
+
+# Use with VoiceStudio
+adapter = MyTTSAdapter(my_tts_model)
+generator = LoRAGenerator.from_pretrained("voicestudio/t2a-lora-base")
+
+lora = generator("professional news anchor voice")
+audio = adapter(text="Breaking news tonight...", lora_weights=lora)
+```
+
+### Multi-Speaker Voice Blending
+
+```python
+from voicestudio import VoiceBlender
+
+blender = VoiceBlender()
+
+# Blend multiple voice characteristics
+blended_lora = blender.blend([
+    ("warm and friendly", 0.6),
+    ("professional and clear", 0.4)
+])
+
+audio = tts_model.synthesize(text, lora=blended_lora)
+```
+
+### Fine-tuning on Custom Data
+
+```python
+from voicestudio import LoRAGenerator
+from voicestudio.training import Trainer
+
+# Load pre-trained generator
+generator = LoRAGenerator.from_pretrained("voicestudio/t2a-lora-base")
+
+# Fine-tune on your data
+trainer = Trainer(
+    model=generator,
+    train_dataset=your_dataset,
+    output_dir="./checkpoints"
+)
+
+trainer.train()
+```
+
+---
+
+## 📊 Supported Models
+
+VoiceStudio works with various TTS architectures:
+
+| Model | Status | Notes |
+|-------|--------|-------|
+| VITS | ✅ Supported | Fully tested |
+| FastSpeech2 | ✅ Supported | Fully tested |
+| Tacotron2 | ✅ Supported | Requires adapter |
+| VALL-E | 🔄 Experimental | Work in progress |
+| Bark | 🔄 Experimental | Coming soon |
+| YourTTS | ✅ Supported | Community contributed |
+
+**Add your own model**: See our [Integration Guide](docs/integration.md)
+
+---
+
+## 🔬 Publications
+
+VoiceStudio is built on the following research:
+
+### Paper 1: Problem Discovery (InterSpeech 2026)
+**"Speaker Inconsistency in Text-Style Prompted Speech Synthesis: Problem Analysis and Initial Approaches"**
+
+- 🔍 First identification of speaker consistency issues in text-style prompted TTS
+- 📊 Attention mechanism analysis revealing transcription dependencies
+- 🛠️ Initial solutions: CLAP-based adaptation and BOS P-tuning
+
+```bibtex
+@inproceedings{voicestudio2026analysis,
+  title={Speaker Inconsistency in Text-Style Prompted Speech Synthesis: Problem Analysis and Initial Approaches},
+  author={Your Name},
+  booktitle={Interspeech},
+  year={2026}
+}
+```
+
+### Paper 2: LoRA Solution (AAAI 2027)
+**"T2A-LoRA: Instant Voice Adaptation via Real-time LoRA Generation"**
+
+- ⚡ First application of LoRA to audio style prompting
+- 🏗️ Architecture-agnostic solution for voice adaptation
+- 🚀 Real-time LoRA generation through hypernetworks
+
+```bibtex
+@inproceedings{voicestudio2027lora,
+  title={T2A-LoRA: Instant Voice Adaptation via Real-time LoRA Generation},
+  author={Your Name},
+  booktitle={AAAI},
+  year={2027}
+}
+```
+
+### Paper 3: LAM & Editing (ICML 2027)
+**"T2A-LoRA2: Text-Guided Voice Editing with Language-Audio Models"**
+
+- 🎨 Novel voice editing paradigm (inspired by visual editing techniques)
+- 🤖 LAM: Open-source Language-Audio Model
+- 🔥 Instruction following for voice manipulation
+
+```bibtex
+@inproceedings{voicestudio2027lam,
+  title={T2A-LoRA2: Text-Guided Voice Editing with Language-Audio Models},
+  author={Your Name},
+  booktitle={ICML},
+  year={2027}
+}
+```
+
+
+### T2A-LoRA: Text-to-Audio LoRA Generation via Hypernetworks for Real-time Voice Adaptation
+
+[![arXiv](https://img.shields.io/badge/arXiv-2501.XXXXX-b31b1b.svg)](https://arxiv.org/abs/2501.XXXXX)
+
+> **T2A-LoRA** is a novel approach for real-time voice adaptation in text-to-speech systems using hypernetworks to generate LoRA weights from natural language descriptions and audio features.
+
+
 
 ## 📊 Model Architecture
 
@@ -260,77 +527,7 @@ for method in fusion_methods:
     results[method] = evaluate_model(model)
 ```
 
-## 📁 Project Structure
-
-```
-T2A-LoRA/
-├── src/t2a_lora/
-│   ├── models/
-│   │   ├── hypernetwork.py          # HyperNetwork implementation
-│   │   ├── multimodal_encoder.py    # Multimodal encoder
-│   │   └── t2a_lora_generator.py    # Main generator model
-│   ├── training/
-│   │   ├── trainer.py               # Training logic
-│   │   ├── config.py                # Training configuration
-│   │   └── data.py                  # Dataset and data loading
-│   ├── generation/
-│   │   ├── generator.py             # Generation utilities
-│   │   └── config.py                # Generation configuration
-│   ├── evaluation/
-│   │   └── evaluator.py             # Evaluation metrics and tools
-│   └── cli.py                       # Command line interface
-├── configs/                         # Configuration files
-├── examples/                        # Example scripts
-├── tests/                          # Unit tests
-├── docs/                           # Documentation
-├── pyproject.toml                  # Package configuration
-└── README.md                       # This file
-```
-
-## 🎛️ Configuration
-
-### Model Configuration
-```json
-{
-  "multimodal": {
-    "text_encoder_name": "klue/roberta-large",
-    "audio_encoder_dim": 512,
-    "fusion_dim": 768,
-    "fusion_method": "cross_attention",
-    "dropout": 0.1
-  },
-  "hypernetwork": {
-    "condition_dim": 768,
-    "hidden_dim": 512,
-    "num_layers": 3,
-    "dropout": 0.1,
-    "activation": "gelu"
-  },
-  "target_model": {
-    "lora_rank": 16,
-    "lora_alpha": 32,
-    "lora_dropout": 0.1
-  }
-}
-```
-
-### Training Configuration
-```json
-{
-  "dataset_path": "./data/training",
-  "batch_size": 8,
-  "learning_rate": 1e-4,
-  "num_epochs": 50,
-  "warmup_steps": 1000,
-  "weight_decay": 0.01,
-  "scheduler": "cosine",
-  "loss_type": "mse",
-  "eval_steps": 500,
-  "save_steps": 1000,
-  "use_wandb": true,
-  "wandb_project": "latentforge-t2a-lora"
-}
-```
+---
 
 ## 📈 Performance
 
@@ -348,64 +545,51 @@ T2A-LoRA/
 - **Generation Speed**: Time to generate LoRA weights
 - **Zero-shot Performance**: Performance on unseen voice descriptions
 
-## 🧪 Experiments and Results
-
-### Zero-shot Generalization
-```python
-# Test unseen voice characteristics
-unseen_descriptions = [
-    "Robot voice with metallic undertones",
-    "Elderly person with slight tremor",
-    "Child with lisp pronunciation",
-    "Foreign accent with clear articulation"
-]
-
-results = evaluate_zero_shot(generator, unseen_descriptions)
-print(f"Average similarity: {results['avg_similarity']:.3f}")
-```
-
-### Cross-lingual Transfer
-```python
-# Test Korean model on English descriptions
-korean_model = T2ALoRAGenerator.from_pretrained("LatentForge/t2a-lora-korean-base")
-english_results = evaluate_english_descriptions(korean_model)
-```
+---
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-### Development Setup
-```bash
-git clone https://github.com/LatentForge/T2A-LoRA.git
-cd T2A-LoRA
-uv pip install -e ".[dev]"
-pre-commit install
-```
+**Areas we need help with:**
+- 🔧 Additional TTS model adapters
+- 📚 Documentation improvements
+- 🐛 Bug fixes and testing
+- 🌍 Multi-language support
+- 🎨 New voice editing techniques
 
-### Running Tests
-```bash
-pytest tests/ -v --cov=src/t2a_lora
-```
+---
 
-### Code Style
-```bash
-# Format code
-black src/ tests/ examples/
-isort src/ tests/ examples/
+## 📝 License
 
-# Check code style
-flake8 src/ tests/ examples/
-mypy src/
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
 
-# Run all checks
-pytest tests/ && black --check src/ && isort --check-only src/ && flake8 src/
-```
+The base TTS models supported by this project are subject to their own respective licenses. Users are responsible for reviewing and complying with each model’s license before use.
+
+---
+
+## 🙏 Acknowledgments
+
+- **Sakana AI** for the original Text-to-LoRA concept
+- **HyperTTS** authors for hypernetwork applications in TTS
+- **The open-source community** for tools and datasets
+- **CLAP**: Microsoft & LAION-AI for CLAP model
+- **LoRA**: Microsoft for LoRA technique
+- **HuggingFace**: For transformers library and model hub
+
 
 ## 📚 Citation
 
-If you use T2A-LoRA in your research, please cite our paper:
+If you use VoiceStudio in your research, please cite:
 
+```bibtex
+@software{voicestudio2026,
+  title={VoiceStudio: A Unified Toolkit for Voice Style Adaptation},
+  author={Your Name},
+  year={2026},
+  url={https://github.com/LatentForge/voicestudio}
+}
+```
 ```bibtex
 @article{t2a-lora-2025,
   title={T2A-LoRA: Text-to-Audio LoRA Generation via Hypernetworks for Real-time Voice Adaptation},
@@ -415,37 +599,29 @@ If you use T2A-LoRA in your research, please cite our paper:
 }
 ```
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🔗 Links
 
 - **Paper**: [arXiv:2501.XXXXX](https://arxiv.org/abs/2501.XXXXX)
-- **Demo**: [https://latentforge.github.io/T2A-LoRA/demo](https://latentforge.github.io/T2A-LoRA/demo)
-- **Documentation**: [https://latentforge.github.io/T2A-LoRA](https://latentforge.github.io/T2A-LoRA)
+- **Demo**: [https://latentforge.github.io/VoiceStudio](https://latentforge.github.io/VoiceStudio)
+- **Documentation**: [https://latentforge.github.io/VoiceStudio](https://latentforge.github.io/VoiceStudio)
 - **Models**: [HuggingFace Hub](https://huggingface.co/LatentForge)
 
-## 🙏 Acknowledgments
-
-- Sakana AI for the original Text-to-LoRA concept
-- HyperTTS authors for hypernetwork applications in TTS
-- The open-source community for tools and datasets
+---
 
 ## 📞 Contact
 
-- **Issues**: [GitHub Issues](https://github.com/LatentForge/T2A-LoRA/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/LatentForge/T2A-LoRA/discussions)
+- **Issues**: [GitHub Issues](https://github.com/LatentForge/VoiceStudio/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/LatentForge/VoiceStudio/discussions)
 - **Email**: contact@latentforge.org
 
 ---
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/LatentForge/T2A-LoRA?style=social" alt="Stars">
-  <img src="https://img.shields.io/github/forks/LatentForge/T2A-LoRA?style=social" alt="Forks">
-  <img src="https://img.shields.io/github/watchers/LatentForge/T2A-LoRA?style=social" alt="Watchers">
+  <img src="https://img.shields.io/github/stars/LatentForge/VoiceStudio?style=social" alt="Stars">
+  <img src="https://img.shields.io/github/forks/LatentForge/VoiceStudio?style=social" alt="Forks">
+  <img src="https://img.shields.io/github/watchers/LatentForge/VoiceStudio?style=social" alt="Watchers">
 </p>
 
 <p align="center">
-  Made with ❤️ by LatentForge
+  <strong>Made with ❤️ by LatentForge Team</strong>
 </p>
