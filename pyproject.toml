@@ -49,12 +49,17 @@ dependencies = [
     "matplotlib>=3.10.5",
 ]
 [project.optional-dependencies]
+all = [
+    "voicestudio[models]",
+    "voicestudio[web]",
+    "flash-attn",
+]
 # -----------------------------------------
 # Model Namespace Packages
 # -----------------------------------------
-all = [
-    "voicestudio-parler-tts",
-    "voicestudio-higgs-audio",
+models = [
+    "voicestudio[parler]",
+    "voicestudio[higgs]",
 ]
 parler = [ "voicestudio-parler-tts" ]  # Apache 2.0 License
 higgs = [ "voicestudio-higgs-audio" ]  # Apache 2.0 License
@@ -74,6 +79,9 @@ torchaudio = [
 ]
 voicestudio-parler-tts = { git = "https://github.com/latentforge/parler-tts", rev = "namespace" }
 voicestudio-higgs-audio = { git = "https://github.com/latentforge/higgs-audio", rev = "namespace" }
+
+[tool.uv.extra-build-dependencies]
+flash-attn = ["torch"]
 
 [[tool.uv.index]]
 name = "pytorch-windows"
