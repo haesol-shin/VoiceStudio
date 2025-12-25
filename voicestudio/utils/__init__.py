@@ -5,6 +5,7 @@ Utility functions for synthesis pipeline.
 from pathlib import Path
 from typing import Union
 
+
 def validate_audio_file(file_path: Union[str, Path]) -> bool:
     """Basic validation for audio files.
 
@@ -51,9 +52,3 @@ def create_output_filename(
         Formatted filename
     """
     return f"{prefix}_{index:0{zero_pad}d}{extension}"
-
-
-__all__ = [
-    "validate_audio_file",
-    "create_output_filename"
-]
