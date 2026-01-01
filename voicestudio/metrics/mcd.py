@@ -5,15 +5,15 @@ MCD (Mel Cepstral Distortion) calculator for spectral quality evaluation.
 import math
 from pathlib import Path
 from typing import List, Tuple
-import numpy as np
-import torch
-import torchaudio
+
 import librosa
-import pyworld
+import numpy as np
 import pysptk
+import pyworld
+from librosa.sequence import dtw
 from tqdm import tqdm
 
-from .base import BaseMetricCalculator, ModelConfig, MetricCalculationError
+from .base import BaseMetricCalculator, MetricCalculationError, ModelConfig
 
 
 class MCDCalculator(BaseMetricCalculator):
@@ -21,20 +21,15 @@ class MCDCalculator(BaseMetricCalculator):
 
     def __init__(self, config: ModelConfig):
         super().__init__(config)
-        self.target_sr = self.config.additional_params.get('sample_rate', 16000)
-        self.frame_period = self.config.additional_params.get('frame_period', 5.0)
-        self.alpha = self.config.additional_params.get('alpha', 0.65)
-        self.fft_size = self.config.additional_params.get('fft_size', 512)
-        self.mcep_size = self.config.additional_params.get('mcep_size', 25)
+        self.target_sr = self.config.additional_params.get("sample_rate", 16000)
+        self.frame_period = self.config.additional_params.get("frame_period", 5.0)
+        self.alpha = self.config.additional_params.get("alpha", 0.65)
+        self.fft_size = self.config.additional_params.get("fft_size", 512)
+        self.mcep_size = self.config.additional_params.get("mcep_size", 25)
 
     def _load_model_impl(self) -> None:
         """Initialize MCD calculation components."""
         try:
-            # Verify required libraries are available
-            import pyworld
-            import pysptk
-            import librosa
-
             self.logger.info(f"Initialized MCD calculator with parameters:")
             self.logger.info(f"  Sample rate: {self.target_sr}")
             self.logger.info(f"  Frame period: {self.frame_period}")
@@ -76,20 +71,11 @@ class MCDCalculator(BaseMetricCalculator):
                 loaded_wav.astype(np.double),
                 fs=self.target_sr,
                 frame_period=self.frame_period,
-                fft_size=self.fft_size
+                fft_size=self.fft_size,
             )
 
             # Extract MCEP features
-            mgc = pysptk.sptk.mcep(
-                sp,
-                order=self.mcep_size,
-                alpha=self.alpha,
-                maxiter=0,
-                etype=1,
-                eps=1.0E-8,
-                min_det=0.0,
-                itype=3
-            )
+            mgc = pysptk.sp2mc(sp, order=self.mcep_size, alpha=self.alpha)
 
             return mgc
 
@@ -117,12 +103,8 @@ class MCDCalculator(BaseMetricCalculator):
         """
         try:
             # Use DTW to align sequences (skip 0th coefficient)
-            from librosa.sequence import dtw
-
             cost_matrix, warping_path = dtw(
-                ref_mcep[:, 1:].T,
-                syn_mcep[:, 1:].T,
-                metric=self.log_spec_dB_dist
+                ref_mcep[:, 1:].T, syn_mcep[:, 1:].T, metric=self.log_spec_dB_dist
             )
 
             return cost_matrix[-1, -1] / len(warping_path)
@@ -130,7 +112,9 @@ class MCDCalculator(BaseMetricCalculator):
         except Exception as e:
             raise MetricCalculationError(f"MCD DTW calculation failed: {e}")
 
-    def calculate_mcd_frame_by_frame(self, ref_mcep: np.ndarray, syn_mcep: np.ndarray) -> float:
+    def calculate_mcd_frame_by_frame(
+        self, ref_mcep: np.ndarray, syn_mcep: np.ndarray
+    ) -> float:
         """
         Calculate frame-by-frame MCD (without DTW alignment).
 
@@ -158,7 +142,9 @@ class MCDCalculator(BaseMetricCalculator):
         except Exception as e:
             raise MetricCalculationError(f"Frame-by-frame MCD calculation failed: {e}")
 
-    def calculate_mcd(self, ref_mcep: np.ndarray, syn_mcep: np.ndarray, use_dtw: bool = True) -> float:
+    def calculate_mcd(
+        self, ref_mcep: np.ndarray, syn_mcep: np.ndarray, use_dtw: bool = True
+    ) -> float:
         """
         Calculate MCD between MCEP features.
 
@@ -187,7 +173,7 @@ class MCDCalculator(BaseMetricCalculator):
             syn_mcep = self.extract_mcep(syn_path)
 
             # Calculate MCD (use DTW by default for better alignment)
-            use_dtw = self.config.additional_params.get('use_dtw', True)
+            use_dtw = self.config.additional_params.get("use_dtw", True)
             mcd_score = self.calculate_mcd(ref_mcep, syn_mcep, use_dtw=use_dtw)
 
             self.logger.debug(f"MCD score: {mcd_score:.4f} dB")
@@ -212,7 +198,9 @@ class MCDCalculator(BaseMetricCalculator):
             # Extract MCEP features for all files
             mcep_features = {}
 
-            self.logger.info(f"Extracting MCEP features for {len(all_paths)} unique audio files")
+            self.logger.info(
+                f"Extracting MCEP features for {len(all_paths)} unique audio files"
+            )
 
             for audio_path in tqdm(all_paths, desc="Extracting MCEP features"):
                 try:
@@ -223,7 +211,7 @@ class MCDCalculator(BaseMetricCalculator):
 
             # Calculate MCD for all pairs
             results = []
-            use_dtw = self.config.additional_params.get('use_dtw', True)
+            use_dtw = self.config.additional_params.get("use_dtw", True)
 
             for ref_path, syn_path in tqdm(pairs, desc="Calculating MCD scores"):
                 try:
@@ -231,7 +219,9 @@ class MCDCalculator(BaseMetricCalculator):
                     syn_mcep = mcep_features.get(syn_path)
 
                     if ref_mcep is not None and syn_mcep is not None:
-                        mcd_score = self.calculate_mcd(ref_mcep, syn_mcep, use_dtw=use_dtw)
+                        mcd_score = self.calculate_mcd(
+                            ref_mcep, syn_mcep, use_dtw=use_dtw
+                        )
                         results.append(mcd_score)
                     else:
                         results.append(np.nan)
@@ -243,14 +233,16 @@ class MCDCalculator(BaseMetricCalculator):
             return results
 
         except Exception as e:
-            self.logger.warning(f"Batch processing failed, falling back to individual: {e}")
+            self.logger.warning(
+                f"Batch processing failed, falling back to individual: {e}"
+            )
             return super().calculate_batch_optimized(pairs)
 
     def get_name(self) -> str:
         return "MCD"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from pathlib import Path
 
     ref_path = Path("data/test/ref.wav")
@@ -261,13 +253,13 @@ if __name__ == '__main__':
         batch_size=8,
         device="cpu",
         additional_params={
-            'sample_rate': 16000,
-            'frame_period': 5.0,
-            'alpha': 0.65,
-            'fft_size': 512,
-            'mcep_size': 25,
-            'use_dtw': True
-        }
+            "sample_rate": 16000,
+            "frame_period": 5.0,
+            "alpha": 0.65,
+            "fft_size": 512,
+            "mcep_size": 25,
+            "use_dtw": True,
+        },
     )
 
     try:

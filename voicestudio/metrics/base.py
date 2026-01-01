@@ -4,17 +4,19 @@ Base metric calculator with error handling and resource management.
 
 import logging
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import List, Tuple, Optional, Callable, Any, Dict
 from dataclasses import dataclass
-import torch
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import numpy as np
+import torch
 from tqdm import tqdm
 
 
 @dataclass
 class ModelConfig:
     """Model configuration for metric calculators."""
+
     name: str
     model_path: Optional[Path] = None
     batch_size: int = 8
@@ -28,11 +30,13 @@ class ModelConfig:
 
 class MetricCalculationError(Exception):
     """Custom exception for metric calculation errors."""
+
     pass
 
 
 class ModelLoadError(Exception):
     """Custom exception for model loading errors."""
+
     pass
 
 
@@ -74,12 +78,16 @@ class BaseMetricCalculator(ABC):
     def calculate_pair(self, ref_path: Path, syn_path: Path) -> float:
         """Calculate metric for a single reference-synthesis pair."""
         if not self._is_initialized:
-            raise MetricCalculationError("Model not initialized. Call load_model() first.")
+            raise MetricCalculationError(
+                "Model not initialized. Call load_model() first."
+            )
 
         try:
             return self._calculate_pair_impl(ref_path, syn_path)
         except Exception as e:
-            self.logger.error(f"Error calculating {self.get_name()} for pair ({ref_path}, {syn_path}): {e}")
+            self.logger.error(
+                f"Error calculating {self.get_name()} for pair ({ref_path}, {syn_path}): {e}"
+            )
             raise MetricCalculationError(f"Error calculating {self.get_name()}: {e}")
 
     @abstractmethod
@@ -90,7 +98,7 @@ class BaseMetricCalculator(ABC):
     def calculate_batch(
         self,
         pairs: List[Tuple[Path, Path]],
-        progress_callback: Optional[Callable[[int, int], None]] = None
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> List[float]:
         """
         Calculate metric for multiple pairs with progress tracking.
@@ -103,7 +111,9 @@ class BaseMetricCalculator(ABC):
             List of metric scores
         """
         if not self._is_initialized:
-            raise MetricCalculationError("Model not initialized. Call load_model() first.")
+            raise MetricCalculationError(
+                "Model not initialized. Call load_model() first."
+            )
 
         results = []
         total_pairs = len(pairs)
@@ -120,7 +130,9 @@ class BaseMetricCalculator(ABC):
                     progress_callback(i + 1, total_pairs)
 
             except Exception as e:
-                self.logger.warning(f"Skipping pair ({ref_path}, {syn_path}) due to error: {e}")
+                self.logger.warning(
+                    f"Skipping pair ({ref_path}, {syn_path}) due to error: {e}"
+                )
                 results.append(np.nan)  # Use NaN for failed calculations
 
         return results
@@ -137,7 +149,9 @@ class BaseMetricCalculator(ABC):
         """Get metric name."""
         pass
 
-    def validate_audio_files(self, pairs: List[Tuple[Path, Path]]) -> List[Tuple[Path, Path]]:
+    def validate_audio_files(
+        self, pairs: List[Tuple[Path, Path]]
+    ) -> List[Tuple[Path, Path]]:
         """
         Validate that all audio files exist and are readable.
 

@@ -1,14 +1,16 @@
 """
 WER (Word Error Rate) calculator using Whisper for transcription.
 """
+
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
-import numpy as np
-import torch
+from typing import Dict, List, Tuple
+
 import jiwer
+import numpy as np
+import whisper
 from tqdm import tqdm
 
-from .base import BaseMetricCalculator, ModelConfig, MetricCalculationError
+from .base import BaseMetricCalculator, MetricCalculationError, ModelConfig
 
 
 class WERCalculator(BaseMetricCalculator):
@@ -22,23 +24,22 @@ class WERCalculator(BaseMetricCalculator):
     @staticmethod
     def _setup_transform() -> jiwer.Compose:
         """Setup text transformation for WER calculation."""
-        return jiwer.Compose([
-            jiwer.ToLowerCase(),
-            jiwer.RemoveWhiteSpace(replace_by_space=True),
-            jiwer.RemoveMultipleSpaces(),
-            jiwer.ReduceToListOfListOfWords(word_delimiter=" ")
-        ])
+        return jiwer.Compose(
+            [
+                jiwer.ToLowerCase(),
+                jiwer.RemoveWhiteSpace(replace_by_space=True),
+                jiwer.RemoveMultipleSpaces(),
+                jiwer.ReduceToListOfListOfWords(word_delimiter=" "),
+            ]
+        )
 
     def _load_model_impl(self) -> None:
         """Load Whisper model."""
         try:
-            import whisper
-
-            model_name = self.config.additional_params.get('model_name', 'large-v3')
+            model_name = self.config.additional_params.get("model_name", "large-v3")
 
             self.whisper_model = whisper.load_model(
-                model_name,
-                device=self.get_device()
+                model_name, device=self.get_device()
             )
 
             self.logger.info(f"Loaded Whisper model: {model_name}")
@@ -61,17 +62,14 @@ class WERCalculator(BaseMetricCalculator):
         try:
             # Whisper transcription options
             options = {
-                'language': self.config.additional_params.get('language', 'en'),
-                'task': 'transcribe',
-                'fp16': torch.cuda.is_available(),
+                "language": self.config.additional_params.get("language", "en"),
+                "task": "transcribe",
+                "fp16": torch.cuda.is_available(),
             }
 
-            result = self.whisper_model.transcribe(
-                str(audio_path),
-                **options
-            )
+            result = self.whisper_model.transcribe(str(audio_path), **options)
 
-            return result['text'].strip()
+            return result["text"].strip()
 
         except Exception as e:
             self.logger.error(f"Failed to transcribe {audio_path}: {e}")
@@ -97,7 +95,7 @@ class WERCalculator(BaseMetricCalculator):
                 ref_text,
                 syn_text,
                 reference_transform=self.transform,
-                hypothesis_transform=self.transform
+                hypothesis_transform=self.transform,
             )
 
             return float(wer_score)
@@ -147,7 +145,9 @@ class WERCalculator(BaseMetricCalculator):
                     transcriptions[audio_path] = self.transcribe_audio(audio_path)
                 except Exception as e:
                     self.logger.warning(f"Failed to transcribe {audio_path}: {e}")
-                    transcriptions[audio_path] = ""  # Empty string for failed transcriptions
+                    transcriptions[audio_path] = (
+                        ""  # Empty string for failed transcriptions
+                    )
 
             # Calculate WER for all pairs
             results = []
@@ -169,20 +169,22 @@ class WERCalculator(BaseMetricCalculator):
             return results
 
         except Exception as e:
-            self.logger.warning(f"Batch processing failed, falling back to individual: {e}")
+            self.logger.warning(
+                f"Batch processing failed, falling back to individual: {e}"
+            )
             return super().calculate_batch_optimized(pairs)
 
     def get_transcription_cache(self) -> Dict[Path, str]:
         """Get cached transcriptions (for debugging/analysis purposes)."""
-        return getattr(self, '_transcription_cache', {})
+        return getattr(self, "_transcription_cache", {})
 
     def get_name(self) -> str:
         return "WER"
 
 
-if __name__ == '__main__':
-    from pathlib import Path
+if __name__ == "__main__":
     import torch
+    from pathlib import Path
 
     ref_path = Path("data/test/ref.wav")
     syn_path = Path("data/test/syn.wav")
@@ -191,7 +193,7 @@ if __name__ == '__main__':
         name="wer",
         batch_size=8,
         device="cuda" if torch.cuda.is_available() else "cpu",
-        additional_params={'model_name': 'base', 'language': 'en'}
+        additional_params={"model_name": "base", "language": "en"},
     )
 
     try:

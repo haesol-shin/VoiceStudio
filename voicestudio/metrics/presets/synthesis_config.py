@@ -4,21 +4,23 @@ Synthesis configuration classes.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 
 
 @dataclass
 class DatasetConfig:
     """Configuration for datasets."""
+
     name: str
     sample_rate: int = 22050
     max_duration: Optional[float] = None  # seconds
-    min_duration: Optional[float] = 1.0   # seconds
+    min_duration: Optional[float] = 1.0  # seconds
 
 
 @dataclass
 class ModelConfig:
     """Configuration for TTS models."""
+
     name: str
     device: str = "cuda"
     model_path: Optional[str] = None
@@ -31,6 +33,7 @@ class ModelConfig:
 @dataclass
 class GenerationConfig:
     """Configuration for generation methods."""
+
     method1_samples: int = 100
     method2_ref_samples: int = 10
     method2_syn_per_ref: int = 10
