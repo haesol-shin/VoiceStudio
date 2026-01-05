@@ -3,7 +3,6 @@ UTMOS calculator using UTMOSv2.
 """
 
 from pathlib import Path
-from typing import List, Tuple
 
 from utmosv2 import create_model
 
@@ -51,7 +50,7 @@ class UTMOSCalculator(BaseMetricCalculator):
         except Exception as e:
             raise MetricCalculationError(f"Failed to calculate UTMOS: {e}")
 
-    def calculate_batch_optimized(self, pairs: List[Tuple[Path, Path]]) -> List[float]:
+    def calculate_batch_optimized(self, pairs: list[tuple[Path, Path]]) -> list[float]:
         """Optimized batch calculation for UTMOS."""
         try:
             # Extract synthesis paths only (UTMOS doesn't use reference)

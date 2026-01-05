@@ -3,13 +3,14 @@ Parler-TTS synthesizer implementation.
 """
 
 from pathlib import Path
-from typing import Optional, List
-import torch
+
 import soundfile as sf
-from tqdm import tqdm
+import torch
+from transformers import AutoTokenizer
+
+from voicestudio.models.parler_tts import ParlerTTSForConditionalGeneration
 
 from .base import BaseSynthesizer
-
 
 # Default description if none provided
 DEFAULT_DESCRIPTION = "A female speaker delivers a slightly expressive and animated speech with a moderate speed and pitch. The recording is of very high quality, with the speaker's voice sounding clear and very close up."
@@ -25,12 +26,6 @@ class ParlerTTSSynthesizer(BaseSynthesizer):
     def load_model(self) -> None:
         """Load Parler-TTS model and tokenizer."""
         try:
-            from parler_tts import ParlerTTSForConditionalGeneration
-            from transformers import AutoTokenizer
-        except ImportError:
-            raise RuntimeError("Parler-TTS not installed. Install with: pip install parler-tts")
-
-        try:
             model_name = "parler-tts/parler-tts-mini-v1"
             self.model = ParlerTTSForConditionalGeneration.from_pretrained(model_name).to(self.config.device)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -45,9 +40,9 @@ class ParlerTTSSynthesizer(BaseSynthesizer):
             self,
             text: str,
             output_path: Path,
-            reference_audio: Optional[Path] = None,
-            style_prompt: Optional[str] = None,
-            speaker_id: Optional[str] = None
+            reference_audio: Path | None = None,
+            style_prompt: str | None = None,
+            speaker_id: str | None = None
     ) -> bool:
         """Synthesize speech using Parler-TTS.
 

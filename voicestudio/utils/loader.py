@@ -3,12 +3,11 @@ Audio loading utilities for metric calculation.
 Separates file I/O from metric computation logic.
 """
 
+import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 import torch
 import torchaudio
-import warnings
 
 
 class AudioLoader:
@@ -23,10 +22,10 @@ class AudioLoader:
 
     def __init__(
         self,
-        sr: Optional[int] = None,
+        sr: int | None = None,
         mono: bool = True,
         cache: bool = True,
-        device: Optional[Union[str, torch.device]] = None,
+        device: str | torch.device | None = None,
     ):
         """
         Initialize AudioLoader.
@@ -40,10 +39,10 @@ class AudioLoader:
         self.sr = sr if sr is not None else self.DEFAULT_SAMPLE_RATE
         self.mono = mono
         self.device = torch.device(device) if device else torch.device("cpu")
-        self._cache: Dict[Path, torch.Tensor] = {} if cache else None
-        self._resamplers: Dict[int, torchaudio.transforms.Resample] = {}
+        self._cache: dict[Path, torch.Tensor] = {} if cache else None
+        self._resamplers: dict[int, torchaudio.transforms.Resample] = {}
 
-    def load(self, path: Union[str, Path]) -> torch.Tensor:
+    def load(self, path: str | Path) -> torch.Tensor:
         """
         Load audio file and convert to tensor.
 
@@ -109,8 +108,8 @@ class AudioLoader:
         return waveform
 
     def load_batch(
-        self, paths: List[Union[str, Path]], unique_only: bool = True
-    ) -> Dict[Path, torch.Tensor]:
+        self, paths: list[str | Path], unique_only: bool = True
+    ) -> dict[Path, torch.Tensor]:
         """
         Load multiple audio files.
 

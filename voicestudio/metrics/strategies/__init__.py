@@ -2,12 +2,11 @@
 Generation strategies for synthesis pipeline.
 """
 
+from ..presets import GenerationMethod
 from .base import BaseGenerationStrategy
 from .method1 import Method1Strategy
 from .method2 import Method2Strategy
 from .method3 import Method3Strategy
-from config import GenerationMethod
-
 
 # Strategy registry for factory pattern
 STRATEGY_REGISTRY = {
