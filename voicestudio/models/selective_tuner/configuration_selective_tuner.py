@@ -33,6 +33,10 @@ class SelectiveTunerConfig(PretrainedConfig):
         use_direct_anchor (`bool`, *optional*, defaults to `True`):
             Whether to use direct anchor (DirectStyleAnchor) or encoder-based anchor 
             (EncoderStyleAnchor with 2-layer MLP).
+        tie_embeddings (`bool`, *optional*, defaults to `False`):
+            Whether to share weights between all replaced embedding layers. When True,
+            all StyleAnchorEmbedding instances will share the same pretrained weights
+            and anchor parameters.
         **kwargs:
             Additional keyword arguments to set as config attributes.
 
@@ -67,6 +71,7 @@ class SelectiveTunerConfig(PretrainedConfig):
         anchor_token: str | tuple[str] = "<bos>",
         anchor_token_id: Optional[int | tuple[int]] = None,
         use_direct_anchor: bool = True,
+        tie_embeddings: bool = False,
         **kwargs,
     ):
         """
@@ -107,6 +112,7 @@ class SelectiveTunerConfig(PretrainedConfig):
             else:
                 config.anchor_token_id = anchor_token_id
             config.use_direct_anchor = use_direct_anchor
+            config.tie_embeddings = tie_embeddings
             for k, v in kwargs.items():
                 setattr(config, k, v)
             return config
@@ -117,6 +123,7 @@ class SelectiveTunerConfig(PretrainedConfig):
         anchor_token: str | tuple[str] = "<bos>",
         anchor_token_id: Optional[int | tuple[int]] = None,
         use_direct_anchor: bool = True,
+        tie_embeddings: bool = False,
         **kwargs,
     ):
         """
@@ -138,6 +145,7 @@ class SelectiveTunerConfig(PretrainedConfig):
         if anchor_token_id is None:
             raise AttributeError("`anchor_token_id` cannot be inferred from provided `anchor_token` since there weren't provided any vocab info")
         self.use_direct_anchor = use_direct_anchor
+        self.tie_embeddings = tie_embeddings
 
     @classmethod
     def _get_config_dict(
@@ -151,8 +159,9 @@ class SelectiveTunerConfig(PretrainedConfig):
         anchor_token = kwargs.pop('anchor_token', None)
         anchor_token_id = kwargs.pop('anchor_token_id', None)
         use_direct_anchor = kwargs.pop('use_direct_anchor', None)
+        tie_embeddings = kwargs.pop('tie_embeddings', None)
 
-        for arg, data in (('anchor_token', anchor_token), ('anchor_token_id', anchor_token_id), ('use_direct_anchor', use_direct_anchor)):
+        for arg, data in (('anchor_token', anchor_token), ('anchor_token_id', anchor_token_id), ('use_direct_anchor', use_direct_anchor), ('tie_embeddings', tie_embeddings)):
             if data is not None:
                 config_dict[arg] = data
 
