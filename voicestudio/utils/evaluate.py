@@ -2,6 +2,7 @@
 Evaluation pipeline for synthesized audio quality assessment.
 """
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -19,12 +20,28 @@ class EvaluationPipeline:
         self.ref_dir = self.base_dir / "ref"
         self.syn_dir = self.base_dir / "syn"
 
+    @staticmethod
+    def _load_metadata(set_dir: Path) -> dict:
+        """Load metadata.json from a set directory.
+        
+        Args:
+            set_dir: Path to the set directory
+            
+        Returns:
+            Dictionary containing metadata, or empty dict if file doesn't exist
+        """
+        metadata_path = set_dir / "metadata.json"
+        if metadata_path.exists():
+            with open(metadata_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return {}
+
     def get_audio_pairs_with_metadata(
         self,
         dataset_type: DatasetType,
         model_type: ModelType,
         method: GenerationMethod
-    ) -> list[tuple[Path, Path, str | None]]:
+    ) -> list[dict]:
         """Get reference-synthesis audio pairs with metadata for proper grouping.
 
         Args:
@@ -33,7 +50,7 @@ class EvaluationPipeline:
             method: Generation method
 
         Returns:
-            List of (reference_path, synthesis_path, reference_id) tuples
+            List of dictionaries containing pair info and metadata
         """
         ref_base = self.ref_dir / dataset_type.value / method.value
         syn_base = self.syn_dir / dataset_type.value / model_type.value / method.value
@@ -50,7 +67,12 @@ class EvaluationPipeline:
                 syn_file = syn_base / f"syn_{index}.wav"
 
                 if syn_file.exists():
-                    pairs.append((ref_file, syn_file, index))
+                    pairs.append({
+                        "ref_path": ref_file,
+                        "syn_path": syn_file,
+                        "ref_id": index,
+                        "target_text": None  # Not needed for Method1
+                    })
                 else:
                     print(f"Warning: Missing synthesis file {syn_file}")
 
@@ -62,14 +84,29 @@ class EvaluationPipeline:
                 syn_files = sorted(set_dir.glob("syn_*.wav"))
 
                 if len(syn_files) < 2:
-                    print(f"Warning: Skipping {set_dir} for METHOD2, found {len(syn_files)} files (need >= 2).")
+                    print(f"Warning: Skipping {set_dir} for METHOD2, found {len(syn_files)} files.")
                     continue
 
-                consistency_ref_file = syn_files[0]
-                other_syn_files = syn_files[1:]
+                # Load metadata
+                metadata = self._load_metadata(set_dir)
 
-                for syn_file in other_syn_files:
-                    pairs.append((consistency_ref_file, syn_file, ref_index))
+                # For reference-based metrics: (syn_0, syn_1), (syn_0, syn_2), ...
+                consistency_ref_file = syn_files[0]
+                for syn_file in syn_files[1:]:
+                    pairs.append({
+                        "ref_path": consistency_ref_file,
+                        "syn_path": syn_file,
+                        "ref_id": ref_index,
+                        "target_text": metadata.get(syn_file.name, {}).get("target_text")
+                    })
+                
+                # Special dummy pair to ensure syn_files[0] is seen by no-reference metrics
+                pairs.append({
+                    "ref_path": consistency_ref_file,
+                    "syn_path": consistency_ref_file,
+                    "ref_id": ref_index,
+                    "target_text": metadata.get(consistency_ref_file.name, {}).get("target_text")
+                })
 
         elif method == GenerationMethod.METHOD3:
             set_dirs = sorted(d for d in syn_base.iterdir() if d.is_dir() and d.name.startswith('set_'))
@@ -79,26 +116,41 @@ class EvaluationPipeline:
                 syn_files = sorted(set_dir.glob("syn_*.wav"))
 
                 if len(syn_files) < 3:
-                    print(f"Warning: Skipping {set_dir} for METHOD3, found {len(syn_files)} files (need 3: T1, T2, T3).")
+                    print(f"Warning: Skipping {set_dir} for METHOD3, found {len(syn_files)} files.")
                     continue
 
-                consistency_ref_file = syn_files[0]
-                other_syn_files = syn_files[1:]
+                # Load metadata
+                metadata = self._load_metadata(set_dir)
 
-                for syn_file in other_syn_files:
-                    pairs.append((consistency_ref_file, syn_file, ref_index))
+                consistency_ref_file = syn_files[0]
+                for syn_file in syn_files[1:]:
+                    pairs.append({
+                        "ref_path": consistency_ref_file,
+                        "syn_path": syn_file,
+                        "ref_id": ref_index,
+                        "target_text": metadata.get(syn_file.name, {}).get("target_text")
+                    })
+                
+                # Special dummy pair to ensure syn_files[0] is seen by no-reference metrics
+                pairs.append({
+                    "ref_path": consistency_ref_file,
+                    "syn_path": consistency_ref_file,
+                    "ref_id": ref_index,
+                    "target_text": metadata.get(consistency_ref_file.name, {}).get("target_text")
+                })
+
         return pairs
 
     @staticmethod
     def evaluate_pairs_with_grouping(
-        pairs: list[tuple[Path, Path, str | None]],
+        pairs: list[dict],
         metric_types: list[MetricType],
         batch_size: int = 16
     ) -> dict[MetricType, dict[str, list[float]]]:
         """Evaluate pairs and group results by reference ID.
 
         Args:
-            pairs: List of (reference, synthesis, reference_id) tuples
+            pairs: List of dictionaries containing pair info and metadata
             metric_types: List of metrics to calculate
             batch_size: Batch size for metric calculation
 
@@ -118,33 +170,75 @@ class EvaluationPipeline:
 
             try:
                 with create_calculator(metric_type, config) as calculator:
-                    # Extract just the audio paths for validation and calculation
-                    audio_pairs = [(ref_path, syn_path) for ref_path, syn_path, _ in pairs]
-                    valid_pairs = calculator.validate_audio_files(audio_pairs)
-                    print(f"Valid pairs: {len(valid_pairs)}/{len(audio_pairs)}")
-
-                    if not valid_pairs:
-                        results[metric_type] = {}
-                        continue
-
-                    # Calculate scores
-                    scores = calculator.calculate_batch_optimized(valid_pairs)
-
-                    # Group scores by reference ID
-                    grouped_scores = {}
-                    valid_pair_idx = 0
-
-                    for ref_path, syn_path, ref_id in pairs:
-                        if (ref_path, syn_path) in valid_pairs:
-                            if valid_pair_idx < len(scores) and not np.isnan(scores[valid_pair_idx]):
+                    is_no_reference = metric_type in [MetricType.UTMOS]
+                    is_wer = metric_type == MetricType.WER
+                    
+                    if is_no_reference:
+                        # For no-reference metrics, we only care about unique synthesis files
+                        unique_syn_paths = list(set([p["syn_path"] for p in pairs]))
+                        # Create dummy pairs for calculate_batch_optimized
+                        calc_pairs = [(p, p) for p in unique_syn_paths]
+                        valid_pairs = calculator.validate_audio_files(calc_pairs)
+                        
+                        scores_output = calculator.calculate_batch_optimized(valid_pairs)
+                        path_to_score = {valid_pairs[i][1]: scores_output[i] for i in range(len(valid_pairs))}
+                        
+                        grouped_scores = {}
+                        for pair_info in pairs:
+                            score = path_to_score.get(pair_info["syn_path"])
+                            if score is not None and not np.isnan(score):
+                                ref_id = pair_info["ref_id"]
                                 if ref_id not in grouped_scores:
                                     grouped_scores[ref_id] = []
-                                grouped_scores[ref_id].append(scores[valid_pair_idx])
-                            valid_pair_idx += 1
+                                grouped_scores[ref_id].append(score)
+                            
+                    else:
+                        audio_pairs = [(p["ref_path"], p["syn_path"]) for p in pairs]
+                        # Filter out our dummy self-pairs for reference-based metrics
+                        audio_pairs = [(r, s) for r, s in audio_pairs if r != s]
+                        
+                        valid_pairs = calculator.validate_audio_files(audio_pairs)
+                        
+                        # For WER, we need to pass target_text as kwargs
+                        if is_wer:
+                            # Build target_text mapping for WER
+                            pair_to_target = {}
+                            for pair_info in pairs:
+                                if pair_info["ref_path"] != pair_info["syn_path"]:
+                                    key = (pair_info["ref_path"], pair_info["syn_path"])
+                                    pair_to_target[key] = pair_info.get("target_text")
+                            
+                            # Calculate WER with target texts
+                            scores = []
+                            for ref_path, syn_path in valid_pairs:
+                                target_text = pair_to_target.get((ref_path, syn_path))
+                                # WER calculator will use target_text if provided, otherwise transcribe reference
+                                score = calculator(synthesis=syn_path, reference=ref_path, target_text=target_text)
+                                scores.append(score)
+                        else:
+                            scores = calculator.calculate_batch_optimized(valid_pairs)
+
+                        grouped_scores = {}
+                        pair_to_score = {valid_pairs[i]: scores[i] for i in range(len(valid_pairs))}
+
+                        for pair_info in pairs:
+                            ref_path = pair_info["ref_path"]
+                            syn_path = pair_info["syn_path"]
+                            if ref_path == syn_path:
+                                continue  # Skip dummy pairs
+                            
+                            score = pair_to_score.get((ref_path, syn_path))
+                            if score is not None and not np.isnan(score):
+                                # Scaling for WER and FFE: clamp to [0, 1]
+                                if metric_type in [MetricType.WER, MetricType.FFE]:
+                                    score = min(1.0, max(0.0, float(score)))
+                                
+                                ref_id = pair_info["ref_id"]
+                                if ref_id not in grouped_scores:
+                                    grouped_scores[ref_id] = []
+                                grouped_scores[ref_id].append(score)
 
                     results[metric_type] = grouped_scores
-
-                    # Print grouping summary
                     total_scores = sum(len(scores) for scores in grouped_scores.values())
                     print(f"Grouped scores: {total_scores} scores in {len(grouped_scores)} groups")
 
@@ -241,17 +335,7 @@ class EvaluationPipeline:
         metric_types: list[MetricType] = None,
         methods: list[GenerationMethod] = None
     ) -> dict[GenerationMethod, dict[str, float]]:
-        """Evaluate a specific dataset-model combination.
-
-        Args:
-            dataset_type: Dataset to evaluate
-            model_type: Model to evaluate
-            metric_types: Metrics to calculate (default: all)
-            methods: Methods to evaluate (default: both)
-
-        Returns:
-            Dictionary mapping methods to their statistics
-        """
+        """Evaluate a specific dataset-model combination."""
         if metric_types is None:
             metric_types = [MetricType.UTMOS, MetricType.WER, MetricType.SIM, MetricType.FFE, MetricType.MCD]
 
@@ -265,48 +349,113 @@ class EvaluationPipeline:
             print(f"Evaluating: {dataset_type.value} -> {model_type.value} -> {method.value}")
             print(f"{'='*60}")
 
-            # Get audio pairs with metadata
             pairs = self.get_audio_pairs_with_metadata(dataset_type, model_type, method)
-            print(f"Found {len(pairs)} audio pairs")
+            print(f"Found {len(pairs)} primary audio pairs/files")
 
             if not pairs:
-                print(f"No audio pairs found for {method.value}")
+                print(f"No audio samples found for {method.value}")
                 continue
 
-            # Validate grouping for Method2
-            if method == GenerationMethod.METHOD2:
-                ref_groups = {}
-                for _, _, ref_id in pairs:
-                    if ref_id not in ref_groups:
-                        ref_groups[ref_id] = 0
-                    ref_groups[ref_id] += 1
-
-                print(f"Reference groups: {len(ref_groups)} groups")
-                group_sizes = list(ref_groups.values())
-                if group_sizes:
-                    print(f"Group sizes: min={min(group_sizes)}, max={max(group_sizes)}, avg={np.mean(group_sizes):.1f}")
-
-            # Evaluate pairs with proper grouping
             grouped_results = self.evaluate_pairs_with_grouping(pairs, metric_types)
 
-            # Calculate statistics based on method
             if method == GenerationMethod.METHOD1:
                 stats = self.calculate_method1_statistics(grouped_results)
-            else:  # METHOD2
+            else:
                 stats = self.calculate_method2_statistics(grouped_results)
 
             results[method] = stats
-
-            # Print summary
-            print(f"\nResults for {method.value}:")
-            for key, value in stats.items():
-                if isinstance(value, (int, float)):
-                    print(f"  {key}: {value:.4f}")
-                else:
-                    print(f"  {key}: {value}")
+            self.print_markdown_table(method, stats)
 
         return results
 
+    @staticmethod
+    def print_markdown_table(method: GenerationMethod, stats: dict[str, float]) -> None:
+        """Print statistics in a Markdown table format with specific ordering and proper alignment."""
+        # Metric order: UTMOS, WER, COS (SIM), FFE, MCD
+        # Stat order: Mean, Std, Median, Avg Std, Avg CV
+        
+        metrics = [
+            ("UTMOS", "utmos"),
+            ("WER", "wer"),
+            ("COS", "sim"),
+            ("FFE", "ffe"),
+            ("MCD", "mcd")
+        ]
+        
+        stat_keys = [
+            ("Mean", "mean"),
+            ("Std", "std"),
+            ("Median", "median"),
+            ("Avg Std", "avg_std"),
+            ("Avg CV", "avg_cv")
+        ]
+        
+        # Build data rows
+        data_rows = []
+        for label, metric_prefix in metrics:
+            row_items = [label]
+            has_data = False
+            for _, stat_suffix in stat_keys:
+                key = f"{metric_prefix}_{stat_suffix}"
+                val = stats.get(key)
+                if val is not None:
+                    row_items.append(f"{val:.4f}")
+                    has_data = True
+                else:
+                    row_items.append("-")
+            
+            if has_data:
+                data_rows.append(row_items)
+
+        if not data_rows:
+            print(f"\n### Evaluation Results: {method.value}")
+            print("No data available")
+            return
+
+        # Calculate column widths
+        header_row = ["Metric"] + [s[0] for s in stat_keys]
+        col_widths = [len(h) for h in header_row]
+        
+        for row in data_rows:
+            for i, item in enumerate(row):
+                col_widths[i] = max(col_widths[i], len(item))
+
+        # Add padding
+        col_widths = [w + 2 for w in col_widths]
+
+        print(f"\n### Evaluation Results: {method.value}")
+
+        # Print header
+        header_str = "|"
+        for i, item in enumerate(header_row):
+            if i == 0:
+                # Left-align metric names
+                header_str += " " + item.ljust(col_widths[i] - 1) + "|"
+            else:
+                # Center-align stat names
+                header_str += item.center(col_widths[i]) + "|"
+        print(header_str)
+
+        # Print separator
+        sep_str = "|"
+        # First column left-aligned
+        sep_str += " " + ("-" * (col_widths[0] - 2)) + " |"
+        # Other columns center-aligned
+        for w in col_widths[1:]:
+            sep_str += ":" + ("-" * (w - 2)) + ":|"
+        print(sep_str)
+
+        # Print data rows
+        for row in data_rows:
+            row_str = "|"
+            for i, item in enumerate(row):
+                if i == 0:
+                    # Left-align metric names
+                    row_str += " " + item.ljust(col_widths[i] - 1) + "|"
+                else:
+                    # Center-align numbers
+                    row_str += item.center(col_widths[i]) + "|"
+            print(row_str)
     @staticmethod
     def save_results_to_csv(
         results: dict[GenerationMethod, dict[str, float]],

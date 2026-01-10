@@ -41,24 +41,7 @@ class Method3Strategy(BaseGenerationStrategy):
         ref_dir, syn_dir = self.create_output_paths(dataset_name, model_name, "method3")
 
         num_refs = self.config.generation.method2_ref_samples
-
-        initial_samples_to_check = self.dataset.select_samples(num_refs * 5)
-        initial_samples_to_check = self.dataset.filter_by_duration(initial_samples_to_check)
-
-        sample_indices = []
-        used_speakers = set()
-        for sample_idx in initial_samples_to_check:
-            if len(sample_indices) >= num_refs:
-                break
-
-            _, _, _, speaker_id = self.dataset.get_sample(sample_idx)
-
-            if speaker_id not in used_speakers:
-                used_speakers.add(speaker_id)
-                sample_indices.append(sample_idx)
-
-        if len(sample_indices) < num_refs:
-            print(f"Warning: Only {len(sample_indices)} samples available, requested {num_refs}")
+        sample_indices = self.select_unique_speakers(num_refs)
 
         total_success = 0
         num_syn_per_ref = 3
@@ -86,6 +69,7 @@ class Method3Strategy(BaseGenerationStrategy):
                 set_dir.mkdir(exist_ok=True)
 
                 set_success = 0
+                set_metadata = {}
 
                 texts_to_synthesize = self._generate_text_variations(transcript)
 
@@ -98,6 +82,14 @@ class Method3Strategy(BaseGenerationStrategy):
                     )
                     syn_output_path = set_dir / syn_filename
 
+                    # Store metadata for WER evaluation
+                    set_metadata[syn_filename] = {
+                        "target_text": text_to_synthesize,
+                        "text_type": text_type_suffix,
+                        "speaker_id": speaker_id,
+                        "reference_audio": str(audio_path)
+                    }
+
                     if self.synthesizer.synthesize(
                         text=text_to_synthesize,
                         output_path=syn_output_path,
@@ -108,6 +100,9 @@ class Method3Strategy(BaseGenerationStrategy):
                         set_success += 1
                     else:
                         print(f"Failed synthesis: set {ref_idx}, syn {syn_idx} ({text_type_suffix})")
+
+                # Save metadata for this set
+                self.save_metadata(set_dir, set_metadata)
 
                 total_success += set_success
                 print(f"Set {ref_idx}: {set_success}/{num_syn_per_ref} synthesis generated")
