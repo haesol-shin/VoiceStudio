@@ -3,6 +3,7 @@ Base metric calculator with error handling and resource management.
 """
 
 import logging
+import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path

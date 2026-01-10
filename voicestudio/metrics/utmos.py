@@ -2,8 +2,11 @@
 UTMOS calculator using UTMOSv2.
 """
 
+import random
 from pathlib import Path
 
+import numpy as np
+import torch
 from utmosv2 import create_model
 
 from .base import BaseMetricCalculator, MetricCalculationError, ModelConfig
@@ -19,11 +22,17 @@ class UTMOSCalculator(BaseMetricCalculator):
     def _load_model_impl(self) -> None:
         """Load UTMOSv2 model."""
         try:
+            seed = self.config.additional_params.get("seed", 42)
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+
             model_name = self.config.additional_params.get(
                 "model_name", "fusion_stage3"
             )
             fold = self.config.additional_params.get("fold", 0)
-            seed = self.config.additional_params.get("seed", 42)
 
             self.utmos_model = create_model(
                 pretrained=True,
@@ -32,6 +41,8 @@ class UTMOSCalculator(BaseMetricCalculator):
                 seed=seed,
                 device=self.get_device(),
             )
+            
+            self.utmos_model.eval()
 
             self.logger.info(f"Loaded UTMOSv2 model: {model_name}")
 

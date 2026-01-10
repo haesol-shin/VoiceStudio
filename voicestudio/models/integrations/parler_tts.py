@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import random
 from enum import Enum
 from pathlib import Path
 
+import numpy as np
 import soundfile as sf
 import torch
 from transformers import AutoTokenizer
@@ -138,6 +140,9 @@ class ParlerTTSSynthesizer(BaseSynthesizer):
 
     def load_model(self) -> None:
         """Load model with automatic checkpoint detection."""
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        
         self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model_name_or_path)
         
         # Detect anchor mode from checkpoint
@@ -198,6 +203,13 @@ class ParlerTTSSynthesizer(BaseSynthesizer):
             self.load_model()
 
         try:
+            seed = 42
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Tokenize and move to device
