@@ -56,6 +56,8 @@ dependencies = [
     # -----------------------------------------
     "voicestudio-parler-tts",  # Apache 2.0 License
     "voicestudio-higgs-audio",  # Apache 2.0 License
+    "speechbrain",
+    "utmosv2",
 ]
 [project.optional-dependencies]
 all = [
@@ -79,6 +81,8 @@ torchaudio = [
 ]
 voicestudio-parler-tts = { git = "https://github.com/latentforge/parler-tts", rev = "namespace" }
 voicestudio-higgs-audio = { git = "https://github.com/latentforge/higgs-audio", rev = "namespace" }
+speechbrain = { git = "https://github.com/latentforge/speechbrain", rev = "namespace" }
+utmosv2 = { git = "https://github.com/sarulab-speech/UTMOSv2" }
 
 [tool.uv.extra-build-dependencies]
 flash-attn = ["torch"]
