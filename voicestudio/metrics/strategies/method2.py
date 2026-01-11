@@ -2,7 +2,6 @@
 Method 2: 10 references × 10 synthesis each for speaker consistency.
 """
 
-from pathlib import Path
 from tqdm import tqdm
 
 from .base import BaseGenerationStrategy
@@ -30,23 +29,7 @@ class Method2Strategy(BaseGenerationStrategy):
         num_refs = self.config.generation.method2_ref_samples
         syn_per_ref = self.config.generation.method2_syn_per_ref
 
-        initial_samples_to_check = self.dataset.select_samples(num_refs * 5)
-        initial_samples_to_check = self.dataset.filter_by_duration(initial_samples_to_check)
-
-        sample_indices = []
-        used_speakers = set()
-        for sample_idx in initial_samples_to_check:
-            if len(sample_indices) >= num_refs:
-                break
-
-            _, _, _, speaker_id = self.dataset.get_sample(sample_idx)
-
-            if speaker_id not in used_speakers:
-                used_speakers.add(speaker_id)
-                sample_indices.append(sample_idx)
-
-        if len(sample_indices) < num_refs:
-            print(f"Warning: Only {len(sample_indices)} samples available, requested {num_refs}")
+        sample_indices = self.select_unique_speakers(num_refs)
 
         comparison_texts = [
             "At least, no friend came forwards immediately, and mrs Thornton is not one, I fancy, to wait till tardy kindness comes to find her out.",
@@ -63,10 +46,14 @@ class Method2Strategy(BaseGenerationStrategy):
         total_success = 0
 
         # Process each reference
-        for ref_idx, sample_idx in enumerate(tqdm(sample_indices, desc="Processing references")):
+        for ref_idx, sample_idx in enumerate(
+            tqdm(sample_indices, desc="Processing references")
+        ):
             try:
                 # Get reference sample
-                transcript, audio_path, style_prompt, speaker_id = self.dataset.get_sample(sample_idx)
+                transcript, audio_path, style_prompt, speaker_id = (
+                    self.dataset.get_sample(sample_idx)
+                )
 
                 # Copy reference audio
                 ref_filename = f"ref_{ref_idx:03d}.wav"
@@ -81,9 +68,12 @@ class Method2Strategy(BaseGenerationStrategy):
                 set_dir.mkdir(exist_ok=True)
 
                 set_success = 0
+                set_metadata = {}
 
                 # Generate multiple synthesis for this reference
-                for syn_idx in tqdm(range(syn_per_ref), desc=f"Set {ref_idx}", leave=False):
+                for syn_idx in tqdm(
+                    range(syn_per_ref), desc=f"Set {ref_idx}", leave=False
+                ):
                     syn_filename = f"syn_{ref_idx:03d}_{syn_idx:02d}.wav"
                     syn_output_path = set_dir / syn_filename
 
@@ -92,16 +82,26 @@ class Method2Strategy(BaseGenerationStrategy):
                     else:
                         text_to_synthesize = comparison_texts[syn_idx - 1]
 
+                    # Store metadata for WER evaluation
+                    set_metadata[syn_filename] = {
+                        "target_text": text_to_synthesize,
+                        "speaker_id": speaker_id,
+                        "reference_audio": str(audio_path)
+                    }
+
                     if self.synthesizer.synthesize(
                         text=text_to_synthesize,
                         output_path=syn_output_path,
                         reference_audio=audio_path,
                         style_prompt=style_prompt,
-                        speaker_id=speaker_id
+                        speaker_id=speaker_id,
                     ):
                         set_success += 1
                     else:
                         print(f"Failed synthesis: set {ref_idx}, syn {syn_idx}")
+
+                # Save metadata for this set
+                self.save_metadata(set_dir, set_metadata)
 
                 total_success += set_success
                 print(f"Set {ref_idx}: {set_success}/{syn_per_ref} synthesis generated")

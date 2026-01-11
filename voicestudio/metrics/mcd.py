@@ -4,16 +4,15 @@ MCD (Mel Cepstral Distortion) calculator for spectral quality evaluation.
 
 import math
 from pathlib import Path
-from typing import List, Tuple
+
 import numpy as np
-import torch
-import torchaudio
-import librosa
-import pyworld
 import pysptk
+import pyworld
+import torch
+from librosa.sequence import dtw
 from tqdm import tqdm
 
-from .base import BaseMetricCalculator, ModelConfig, MetricCalculationError
+from .base import BaseMetricCalculator, MetricCalculationError, ModelConfig
 
 
 class MCDCalculator(BaseMetricCalculator):
@@ -21,21 +20,16 @@ class MCDCalculator(BaseMetricCalculator):
 
     def __init__(self, config: ModelConfig):
         super().__init__(config)
-        self.target_sr = self.config.additional_params.get('sample_rate', 16000)
-        self.frame_period = self.config.additional_params.get('frame_period', 5.0)
-        self.alpha = self.config.additional_params.get('alpha', 0.65)
-        self.fft_size = self.config.additional_params.get('fft_size', 512)
-        self.mcep_size = self.config.additional_params.get('mcep_size', 25)
+        self.target_sr = self.config.additional_params.get("sample_rate", 16000)
+        self.frame_period = self.config.additional_params.get("frame_period", 5.0)
+        self.alpha = self.config.additional_params.get("alpha", 0.65)
+        self.fft_size = self.config.additional_params.get("fft_size", 512)
+        self.mcep_size = self.config.additional_params.get("mcep_size", 25)
 
     def _load_model_impl(self) -> None:
         """Initialize MCD calculation components."""
         try:
-            # Verify required libraries are available
-            import pyworld
-            import pysptk
-            import librosa
-
-            self.logger.info(f"Initialized MCD calculator with parameters:")
+            self.logger.info("Initialized MCD calculator with parameters:")
             self.logger.info(f"  Sample rate: {self.target_sr}")
             self.logger.info(f"  Frame period: {self.frame_period}")
             self.logger.info(f"  Alpha: {self.alpha}")
@@ -47,19 +41,9 @@ class MCDCalculator(BaseMetricCalculator):
         except Exception as e:
             raise MetricCalculationError(f"Failed to initialize MCD calculator: {e}")
 
-    def _load_and_preprocess_audio(self, audio_path: Path) -> np.ndarray:
-        """Load and preprocess audio for MCEP extraction."""
-        try:
-            # Load audio using librosa (consistent with original code)
-            wav, _ = librosa.load(str(audio_path), sr=self.target_sr, mono=True)
-            return wav.astype(np.double)
-
-        except Exception as e:
-            raise MetricCalculationError(f"Failed to load audio {audio_path}: {e}")
-
     def extract_mcep(self, audio_path: Path) -> np.ndarray:
         """
-        Extract MCEP features from audio.
+        Extract MCEP features from audio file.
 
         Args:
             audio_path: Path to audio file
@@ -68,30 +52,10 @@ class MCDCalculator(BaseMetricCalculator):
             MCEP feature matrix
         """
         try:
-            # Load audio
-            loaded_wav = self._load_and_preprocess_audio(audio_path)
+            waveform = self._prepare_audio_input(audio_path)
+            wav = waveform.numpy().astype(np.double)
 
-            # Use WORLD vocoder to extract spectral envelope
-            _, sp, _ = pyworld.wav2world(
-                loaded_wav.astype(np.double),
-                fs=self.target_sr,
-                frame_period=self.frame_period,
-                fft_size=self.fft_size
-            )
-
-            # Extract MCEP features
-            mgc = pysptk.sptk.mcep(
-                sp,
-                order=self.mcep_size,
-                alpha=self.alpha,
-                maxiter=0,
-                etype=1,
-                eps=1.0E-8,
-                min_det=0.0,
-                itype=3
-            )
-
-            return mgc
+            return self._extract_mcep_from_wav(wav)
 
         except Exception as e:
             self.logger.error(f"Failed to extract MCEP from {audio_path}: {e}")
@@ -116,13 +80,8 @@ class MCDCalculator(BaseMetricCalculator):
             MCD score
         """
         try:
-            # Use DTW to align sequences (skip 0th coefficient)
-            from librosa.sequence import dtw
-
             cost_matrix, warping_path = dtw(
-                ref_mcep[:, 1:].T,
-                syn_mcep[:, 1:].T,
-                metric=self.log_spec_dB_dist
+                ref_mcep[:, 1:].T, syn_mcep[:, 1:].T, metric=self.log_spec_dB_dist
             )
 
             return cost_matrix[-1, -1] / len(warping_path)
@@ -130,7 +89,9 @@ class MCDCalculator(BaseMetricCalculator):
         except Exception as e:
             raise MetricCalculationError(f"MCD DTW calculation failed: {e}")
 
-    def calculate_mcd_frame_by_frame(self, ref_mcep: np.ndarray, syn_mcep: np.ndarray) -> float:
+    def calculate_mcd_frame_by_frame(
+        self, ref_mcep: np.ndarray, syn_mcep: np.ndarray
+    ) -> float:
         """
         Calculate frame-by-frame MCD (without DTW alignment).
 
@@ -144,8 +105,8 @@ class MCDCalculator(BaseMetricCalculator):
         try:
             # Align sequences by taking minimum length
             min_len = min(len(ref_mcep), len(syn_mcep))
-            ref_aligned = ref_mcep[:min_len, 1:]  # Skip 0th coefficient
-            syn_aligned = syn_mcep[:min_len, 1:]  # Skip 0th coefficient
+            ref_aligned = ref_mcep[:min_len, 1:]
+            syn_aligned = syn_mcep[:min_len, 1:]
 
             # Calculate frame-wise distances
             distances = []
@@ -158,7 +119,9 @@ class MCDCalculator(BaseMetricCalculator):
         except Exception as e:
             raise MetricCalculationError(f"Frame-by-frame MCD calculation failed: {e}")
 
-    def calculate_mcd(self, ref_mcep: np.ndarray, syn_mcep: np.ndarray, use_dtw: bool = True) -> float:
+    def calculate_mcd(
+        self, ref_mcep: np.ndarray, syn_mcep: np.ndarray, use_dtw: bool = True
+    ) -> float:
         """
         Calculate MCD between MCEP features.
 
@@ -179,25 +142,43 @@ class MCDCalculator(BaseMetricCalculator):
         except Exception as e:
             raise MetricCalculationError(f"MCD calculation failed: {e}")
 
-    def _calculate_pair_impl(self, ref_path: Path, syn_path: Path) -> float:
-        """Calculate MCD for a reference-synthesis pair."""
+    def _forward_impl(
+        self,
+        synthesis: torch.Tensor,
+        reference: torch.Tensor | None = None,
+        **kwargs,
+    ) -> float:
+        """Calculate MCD between synthesis and reference tensors."""
+        if reference is None:
+            raise MetricCalculationError("MCD requires a reference audio tensor")
+
         try:
-            # Extract MCEP features from both audio files
-            ref_mcep = self.extract_mcep(ref_path)
-            syn_mcep = self.extract_mcep(syn_path)
+            # WORLD/SPTK work with numpy doubles
+            syn_wav = synthesis.cpu().numpy().astype(np.double)
+            ref_wav = reference.cpu().numpy().astype(np.double)
 
-            # Calculate MCD (use DTW by default for better alignment)
-            use_dtw = self.config.additional_params.get('use_dtw', True)
-            mcd_score = self.calculate_mcd(ref_mcep, syn_mcep, use_dtw=use_dtw)
+            # Extract MCEP features
+            syn_mcep = self._extract_mcep_from_wav(syn_wav)
+            ref_mcep = self._extract_mcep_from_wav(ref_wav)
 
-            self.logger.debug(f"MCD score: {mcd_score:.4f} dB")
-
-            return mcd_score
+            # Calculate MCD
+            use_dtw = self.config.additional_params.get("use_dtw", True)
+            return self.calculate_mcd(ref_mcep, syn_mcep, use_dtw=use_dtw)
 
         except Exception as e:
-            raise MetricCalculationError(f"Failed to calculate MCD for pair: {e}")
+            raise MetricCalculationError(f"MCD forward pass failed: {e}")
 
-    def calculate_batch_optimized(self, pairs: List[Tuple[Path, Path]]) -> List[float]:
+    def _extract_mcep_from_wav(self, wav: np.ndarray) -> np.ndarray:
+        """Internal helper for WORLD-based MCEP extraction."""
+        _, sp, _ = pyworld.wav2world(
+            wav,
+            fs=self.target_sr,
+            frame_period=self.frame_period,
+            fft_size=self.fft_size,
+        )
+        return pysptk.sp2mc(sp, order=self.mcep_size, alpha=self.alpha)
+
+    def calculate_batch_optimized(self, pairs: list[tuple[Path, Path]]) -> list[float]:
         """
         Optimized batch calculation for MCD.
         Extracts all MCEP features first, then calculates MCD scores.
@@ -212,7 +193,9 @@ class MCDCalculator(BaseMetricCalculator):
             # Extract MCEP features for all files
             mcep_features = {}
 
-            self.logger.info(f"Extracting MCEP features for {len(all_paths)} unique audio files")
+            self.logger.info(
+                f"Extracting MCEP features for {len(all_paths)} unique audio files"
+            )
 
             for audio_path in tqdm(all_paths, desc="Extracting MCEP features"):
                 try:
@@ -221,9 +204,8 @@ class MCDCalculator(BaseMetricCalculator):
                     self.logger.warning(f"Failed to extract MCEP for {audio_path}: {e}")
                     mcep_features[audio_path] = None
 
-            # Calculate MCD for all pairs
             results = []
-            use_dtw = self.config.additional_params.get('use_dtw', True)
+            use_dtw = self.config.additional_params.get("use_dtw", True)
 
             for ref_path, syn_path in tqdm(pairs, desc="Calculating MCD scores"):
                 try:
@@ -231,7 +213,9 @@ class MCDCalculator(BaseMetricCalculator):
                     syn_mcep = mcep_features.get(syn_path)
 
                     if ref_mcep is not None and syn_mcep is not None:
-                        mcd_score = self.calculate_mcd(ref_mcep, syn_mcep, use_dtw=use_dtw)
+                        mcd_score = self.calculate_mcd(
+                            ref_mcep, syn_mcep, use_dtw=use_dtw
+                        )
                         results.append(mcd_score)
                     else:
                         results.append(np.nan)
@@ -243,16 +227,16 @@ class MCDCalculator(BaseMetricCalculator):
             return results
 
         except Exception as e:
-            self.logger.warning(f"Batch processing failed, falling back to individual: {e}")
+            self.logger.warning(
+                f"Batch processing failed, falling back to individual: {e}"
+            )
             return super().calculate_batch_optimized(pairs)
 
     def get_name(self) -> str:
         return "MCD"
 
 
-if __name__ == '__main__':
-    from pathlib import Path
-
+if __name__ == "__main__":
     ref_path = Path("data/test/ref.wav")
     syn_path = Path("data/test/syn.wav")
 
@@ -261,19 +245,19 @@ if __name__ == '__main__':
         batch_size=8,
         device="cpu",
         additional_params={
-            'sample_rate': 16000,
-            'frame_period': 5.0,
-            'alpha': 0.65,
-            'fft_size': 512,
-            'mcep_size': 25,
-            'use_dtw': True
-        }
+            "sample_rate": 16000,
+            "frame_period": 5.0,
+            "alpha": 0.65,
+            "fft_size": 512,
+            "mcep_size": 25,
+            "use_dtw": True,
+        },
     )
 
     try:
         with MCDCalculator(config) as calculator:
             print(f"Testing {calculator.get_name()} calculator...")
-            score = calculator.calculate_pair(ref_path, syn_path)
+            score = calculator(reference=ref_path, synthesis=syn_path)
             print(f"MCD Score: {score:.4f} dB")
     except Exception as e:
         print(f"Test failed: {e}")

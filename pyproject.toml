@@ -45,6 +45,13 @@ dependencies = [
     "tqdm>=4.67.1",
     "matplotlib>=3.10.5",
     # -----------------------------------------
+    # Evaluation Metrics
+    # -----------------------------------------
+    "pyworld>=0.3.5",
+    "pysptk>=1.0.1",
+    "jiwer>=4.0.0",
+    "utmosv2",
+    # -----------------------------------------
     # Model Namespace Packages
     # -----------------------------------------
     "voicestudio-parler-tts",  # Apache 2.0 License
@@ -80,6 +87,8 @@ voicestudio-parler-tts = { git = "https://github.com/latentforge/parler-tts", re
 voicestudio-higgs-audio = { git = "https://github.com/latentforge/higgs-audio", rev = "namespace" }
 
 voicestudio-f5-tts = { git = "https://github.com/latentforge/f5-tts", rev = "namespace" }
+speechbrain = { git = "https://github.com/latentforge/speechbrain", rev = "fix/support_torch2.9" }
+utmosv2 = { git = "https://github.com/sarulab-speech/UTMOSv2" }
 
 [tool.uv.extra-build-dependencies]
 flash-attn = ["torch"]
