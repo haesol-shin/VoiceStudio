@@ -79,7 +79,7 @@ eval = [
 ]
 flash = [ "flash-attn" ]
 onnx = [  # for Qwen3-TTS, CosyVoice
-    "onnxruntime-gpu>=1.18.0 ; platform_system == 'linux' or platform_system == 'windows'",
+    "onnxruntime-gpu[cuda,cudnn]>=1.18.0 ; platform_system == 'linux' or platform_system == 'windows'",
     "onnxruntime>=1.18.0 ; platform_system == 'darwin'",
     "onnx",
 ]
@@ -96,9 +96,6 @@ torch = [
 ]
 torchaudio = [
     { index = "pytorch-windows", marker = "platform_system == 'Windows'" },
-]
-onnxruntime-gpu = [
-    { index = "onnxruntime-cuda12", marker = "platform_system == 'linux' or platform_system == 'windows'" },
 ]
 voicestudio-parler-tts = { git = "https://github.com/latentforge/parler-tts", rev = "namespace" }
 voicestudio-higgs-audio = { git = "https://github.com/latentforge/higgs-audio", rev = "namespace" }
