@@ -62,6 +62,7 @@ all = [
     "voicestudio[train]",
     "voicestudio[eval]",
     "voicestudio[flash]",
+    "voicestudio[onnx]",
     "voicestudio[web]",
 ]
 train = [
