@@ -312,14 +312,12 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
         **kwargs
     ):
         # Flatten ids to lists
-        self.direct_ids = []
+        self.direct_ids, self.encoder_ids = [], []
         if direct_anchor_token_id is not None:
             if isinstance(direct_anchor_token_id, int):
                 self.direct_ids = [direct_anchor_token_id]
             else:
                 self.direct_ids = list(direct_anchor_token_id)
-
-        self.encoder_ids = []
         if encoder_anchor_token_id is not None:
             if isinstance(encoder_anchor_token_id, int):
                 self.encoder_ids = [encoder_anchor_token_id]
@@ -338,22 +336,20 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
             **kwargs
         )
 
-        # --- Direct Optimization Setup ---
-        self.direct_anchor_deltas = nn.ParameterList([
-            nn.Parameter(torch.zeros(embedding_dim))
-            for _ in self.direct_ids
-        ])
-
-        # --- Encoder Optimization Setup ---
         if hidden_dim is None:
             hidden_dim = embedding_dim // 4
 
-        self.encoder_bases = nn.ParameterList([
+        # --- Direct Optimization Setup ---
+        self.anchor_deltas = nn.ParameterList([
+            nn.Parameter(torch.zeros(embedding_dim))
+            for _ in self.direct_ids
+        ])
+        # --- Encoder Optimization Setup ---
+        self.anchor_bases = nn.ParameterList([
             nn.Parameter(torch.randn(embedding_dim) * 0.01)
             for _ in self.encoder_ids
         ])
-
-        self.encoder_comps = nn.ModuleList([
+        self.anchor_encoders = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(embedding_dim, hidden_dim),
                 nn.Tanh(),
@@ -364,12 +360,12 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
 
     def _compute_deltas(self) -> list[torch.Tensor]:
         # Direct deltas
-        direct_deltas = [d for d in self.direct_anchor_deltas]
+        direct_deltas = [d for d in self.direct_deltas]
 
         # Encoder deltas
         encoder_deltas = [
             encoder(base)
-            for base, encoder in zip(self.encoder_bases, self.encoder_comps)
+            for base, encoder in zip(self.anchor_bases, self.anchor_encoders)
         ]
 
         # Return combined in order (directs then encoders)
@@ -378,14 +374,14 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
     def _reset_deltas(self):
         with torch.no_grad():
             # Reset direct
-            for delta in self.direct_anchor_deltas:
+            for delta in self.direct_deltas:
                 delta.zero_()
 
             # Reset encoder
-            for base in self.encoder_bases:
+            for base in self.anchor_bases:
                 base.data.normal_(0, 0.01)
 
-            for encoder in self.encoder_comps:
+            for encoder in self.anchor_encoders:
                 for layer in encoder.modules():
                     if isinstance(layer, nn.Linear):
                         layer.reset_parameters()
@@ -395,7 +391,7 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
         stats = {}
 
         # Direct stats
-        for i, (anchor_id, delta) in enumerate(zip(self.direct_ids, self.direct_anchor_deltas)):
+        for i, (anchor_id, delta) in enumerate(zip(self.direct_ids, self.direct_deltas)):
             effective = self.weight[anchor_id] + delta
             stats[f'direct_anchor_{i}'] = {
                 'token_id': anchor_id,
@@ -406,9 +402,7 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
             }
 
         # Encoder stats
-        for i, (anchor_id, base, encoder) in enumerate(
-                zip(self.encoder_ids, self.encoder_bases, self.encoder_comps)
-        ):
+        for i, (anchor_id, base, encoder) in enumerate(zip(self.encoder_ids, self.anchor_bases, self.anchor_encoders)):
             delta = encoder(base)
             effective = self.weight[anchor_id] + delta
             stats[f'encoder_anchor_{i}'] = {
