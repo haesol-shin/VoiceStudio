@@ -18,8 +18,8 @@ from transformers import logging
 from transformers.configuration_utils import PretrainedConfig
 
 try:
-    from ...._parler_tts.configuration_parler_tts import PARLER_TTS_PRETRAINED_CONFIG_ARCHIVE_MAP
-    from ...._parler_tts import (
+    from ..._parler_tts.configuration_parler_tts import PARLER_TTS_PRETRAINED_CONFIG_ARCHIVE_MAP
+    from ..._parler_tts import (
         configuration_parler_tts,
         modeling_parler_tts
     )
