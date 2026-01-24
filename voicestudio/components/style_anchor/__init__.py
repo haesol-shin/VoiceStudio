@@ -298,8 +298,29 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
     """
     Style Embedding Anchor using a mix of direct and encoder optimization.
 
+    This class combines both Direct and Encoder style anchors, allowing different tokens to be
+    optimized using different strategies within the same embedding layer.
 
+    Args:
+        num_embeddings (int): Size of the vocabulary
+        embedding_dim (int): Dimension of embeddings
+        direct_anchor_token_id (int | tuple[int] | None): Token ID(s) to use for direct optimization
+        encoder_anchor_token_id (int | tuple[int] | None): Token ID(s) to use for encoder optimization
+        pretrained_weight (torch.Tensor, optional): Pretrained embedding weights
+        hidden_dim (int, optional): Hidden dimension for encoder MLP (default: embedding_dim // 4)
+        padding_idx (int, optional): Padding index
+        **kwargs: Additional arguments for nn.Embedding
+
+    Example:
+        >>> # Use specialized strategies for different tokens
+        >>> embedding = MixedStyleAnchorEmbedding(
+        ...     50257, 768,
+        ...     direct_anchor_token_id=1,      # BOS token: direct optimization
+        ...     encoder_anchor_token_id=50256  # EOS token: encoder optimization
+        ... )
+        >>> output = embedding(input_ids)
     """
+
     def __init__(
         self,
         num_embeddings: int,
