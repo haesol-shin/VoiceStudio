@@ -251,3 +251,5 @@ configuration_parler_tts.ParlerTTSConfig = ParlerTTSConfig
 configuration_parler_tts.ParlerTTSDecoderConfig = ParlerTTSDecoderConfig
 modeling_parler_tts.ParlerTTSConfig = ParlerTTSConfig
 modeling_parler_tts.ParlerTTSDecoderConfig = ParlerTTSDecoderConfig
+modeling_parler_tts.ParlerTTSForConditionalGeneration.config_class = ParlerTTSConfig
+modeling_parler_tts.ParlerTTSPreTrainedModel.config_class = ParlerTTSDecoderConfig
