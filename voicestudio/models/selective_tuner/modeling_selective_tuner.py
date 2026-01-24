@@ -38,7 +38,7 @@ class SelectiveTunerForConditionalGeneration(PreTrainedModel):
         if config.use_mixed_anchor:
             embedding_class = MixedStyleAnchorEmbedding
         anchor_token_id = config.anchor_token_id
-        tie_embeddings = getattr(config, 'tie_embeddings', False)
+        tie_embeddings = getattr(config, 'tie_embeddings', True)
 
         # Get target embedding dimensions from config
         vocab_size = getattr(config, 'vocab_size', None)
