@@ -26,10 +26,12 @@ class SelectiveTunerConfig(PretrainedConfig):
         base_config (`PretrainedConfig`, *optional*):
             Base model configuration to extend. If None, creates a minimal SelectiveTunerConfig.
             When provided, deepcopies the base config and adds anchor parameters to it.
-        anchor_token (`str` or `tuple[str]`, *optional*, defaults to `"<bos>"`):
-            Token(s) to use as style anchor. Can be a single token string or tuple of tokens.
-        anchor_token_id (`int` or `tuple[int]`, *optional*):
+        anchor_token (`str` or `tuple[str]` or `tuple[tuple[str], tuple[str]]`, *optional*, defaults to `"<bos>"`):
+            Token(s) to use as style anchor. 
+            For mixed anchors (use_mixed_anchor=True), expects nested tuple: ((direct_tokens), (encoder_tokens)).
+        anchor_token_id (`int` or `tuple[int]` or `tuple[tuple[int], tuple[int]]`, *optional*):
             Explicit token ID(s) to use as anchor. If provided, overrides token string lookup.
+            For mixed anchors, expects nested tuple structure: ((direct_ids), (encoder_ids)).
         use_direct_anchor (`bool`, *optional*, defaults to `True`):
             Whether to use direct anchor (DirectStyleAnchor) or encoder-based anchor 
             (EncoderStyleAnchor with 2-layer MLP).
@@ -71,8 +73,8 @@ class SelectiveTunerConfig(PretrainedConfig):
     def __new__(
         cls,
         base_config: Optional[PretrainedConfig | str] = None,
-        anchor_token: str | tuple[str] = "<bos>",
-        anchor_token_id: Optional[int | tuple[int]] = None,
+        anchor_token: str | tuple[str] | tuple[tuple[str], tuple[str]] = "<bos>",
+        anchor_token_id: Optional[int | tuple[int] | tuple[tuple[int], tuple[int]]] = None,
         use_direct_anchor: bool = True,
         use_mixed_anchor: bool = False,
         tie_embeddings: bool = True,
@@ -98,6 +100,14 @@ class SelectiveTunerConfig(PretrainedConfig):
             If base_config is None: New SelectiveTunerConfig instance
             If base_config is provided: Deepcopy of base_config with anchor attributes added
         """
+        if use_mixed_anchor:  # Enforce ((direct), (encoder)) structure
+            if not isinstance(anchor_token, (tuple, list)) or len(anchor_token) != 2 or isinstance(anchor_token[0], (tuple, list)):
+                raise ValueError("When `use_mixed_anchor=True`, `anchor_token` must be a tuple of two tuples/lists: ((direct_ids), (encoder_ids)).")
+            if anchor_token_id is not None and (
+                not isinstance(anchor_token_id, (tuple, list)) or len(anchor_token_id) != 2 or isinstance(anchor_token_id[0], (tuple, list))
+            ):
+                raise ValueError("When `use_mixed_anchor=True`, `anchor_token_id` must be a tuple of two tuples/lists: ((direct_ids), (encoder_ids)).")
+
         if base_config is None:
             return super().__new__(cls)
         else:  # does not init a new class (use base_config instead)
@@ -109,7 +119,16 @@ class SelectiveTunerConfig(PretrainedConfig):
                     if isinstance(anchor_token, str):
                         config.anchor_token_id = tokenizer.convert_tokens_to_ids(anchor_token)
                     else:
-                        config.anchor_token_id = tuple([tokenizer.convert_tokens_to_ids(t) for t in anchor_token])
+                        if use_mixed_anchor:
+                            direct_tokens, encoder_tokens = anchor_token
+                            try:
+                                direct_ids = tuple([tokenizer.convert_tokens_to_ids(t) for t in direct_tokens])
+                                encoder_ids = tuple([tokenizer.convert_tokens_to_ids(t) for t in encoder_tokens])
+                            except Exception as e:
+                                raise AttributeError("`anchor_token_id` cannot be inferred from provided `anchor_token` since there weren't provided any vocab info") from e
+                            config.anchor_token_id = (direct_ids, encoder_ids)
+                        else:
+                            config.anchor_token_id = tuple([tokenizer.convert_tokens_to_ids(t) for t in anchor_token])
                 else:
                     raise AttributeError("`anchor_token_id` cannot be inferred from provided `anchor_token` since there weren't provided any vocab info")
             else:
@@ -124,8 +143,8 @@ class SelectiveTunerConfig(PretrainedConfig):
     def __init__(
         self,
         base_config: Optional[PretrainedConfig | str] = None,
-        anchor_token: str | tuple[str] = "<bos>",
-        anchor_token_id: Optional[int | tuple[int]] = None,
+        anchor_token: str | tuple[str] | tuple[tuple[str], tuple[str]] = "<bos>",
+        anchor_token_id: Optional[int | tuple[int] | tuple[tuple[int], tuple[int]]] = None,
         use_direct_anchor: bool = True,
         use_mixed_anchor: bool = False,
         tie_embeddings: bool = True,
