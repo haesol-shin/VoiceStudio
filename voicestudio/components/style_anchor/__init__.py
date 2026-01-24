@@ -381,7 +381,7 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
 
     def _compute_deltas(self) -> list[torch.Tensor]:
         # Direct deltas
-        direct_deltas = [d for d in self.direct_deltas]
+        direct_deltas = [d for d in self.anchor_deltas]
 
         # Encoder deltas
         encoder_deltas = [
@@ -395,7 +395,7 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
     def _reset_deltas(self):
         with torch.no_grad():
             # Reset direct
-            for delta in self.direct_deltas:
+            for delta in self.anchor_deltas:
                 delta.zero_()
 
             # Reset encoder
@@ -412,7 +412,7 @@ class MixedStyleAnchorEmbedding(StyleAnchorEmbedding):
         stats = {}
 
         # Direct stats
-        for i, (anchor_id, delta) in enumerate(zip(self.direct_ids, self.direct_deltas)):
+        for i, (anchor_id, delta) in enumerate(zip(self.direct_ids, self.anchor_deltas)):
             effective = self.weight[anchor_id] + delta
             stats[f'direct_anchor_{i}'] = {
                 'token_id': anchor_id,
