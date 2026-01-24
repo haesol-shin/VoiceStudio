@@ -4,6 +4,7 @@ import os
 from transformers import PreTrainedModel, AutoModel
 from transformers.utils import logging
 from torch import nn
+import torch
 
 from .configuration_selective_tuner import SelectiveTunerConfig
 from ...components.style_anchor import (
@@ -54,6 +55,26 @@ class SelectiveTunerForConditionalGeneration(PreTrainedModel):
         # Store first created embedding's anchor parameters for tying
         shared_anchor_params = None
 
+        # Flatten anchor IDs to check for out-of-bounds access
+        all_anchor_ids = []
+        if config.use_mixed_anchor:
+            d_ids, e_ids = anchor_token_id
+            all_anchor_ids.extend(d_ids if isinstance(d_ids, (list, tuple)) else [d_ids])
+            all_anchor_ids.extend(e_ids if isinstance(e_ids, (list, tuple)) else [e_ids])
+        else:
+            all_anchor_ids.extend(anchor_token_id if isinstance(anchor_token_id, (list, tuple)) else [anchor_token_id])
+
+        # Determine strict max ID
+        max_anchor_id = max(all_anchor_ids) if all_anchor_ids else -1
+        new_num_embeddings = max(vocab_size, max_anchor_id + 1)
+        extension_size = new_num_embeddings - vocab_size
+        if extension_size > 0:  # Extend vocab if needed
+            config.vocab_size = new_num_embeddings
+            logger.info(
+                f"Extending vocabulary from {vocab_size} to {new_num_embeddings} for anchor support."
+                " Top-level generation config's vocab_size is updated, but may still require manual recursive config update."
+            )
+
         # Recursively replace embeddings in all modules
         for parent_name, parent_module in instance.named_modules():
             for child_name, child_module in list(parent_module.named_children()):
@@ -63,24 +84,35 @@ class SelectiveTunerForConditionalGeneration(PreTrainedModel):
                 ):
                     # Only replace if size matches target
                     if child_module.num_embeddings == vocab_size and child_module.embedding_dim == embedding_dim:
+                        current_weight = child_module.weight.data.clone()
 
-                        # Create new anchor embedding with original pretrained weights
+                        # Extend vocab if needed
+                        if extension_size > 0:
+                            # Initialize extension with mean of existing embeddings for stability
+                            mean_embedding = current_weight.mean(dim=0, keepdim=True)
+                            extension_weight = mean_embedding.expand(extension_size, -1).clone()
+                            # Add small noise to break symmetry if multiple new tokens
+                            extension_weight += torch.randn_like(extension_weight) * 0.01
+                            # Concatenate extension to current weight
+                            current_weight = torch.cat([current_weight, extension_weight], dim=0)
+
+                        # Create new anchor embedding with potentially extended weights
                         if config.use_mixed_anchor:
                             direct_ids, encoder_ids = anchor_token_id
                             new_embedding = embedding_class(
-                                num_embeddings=child_module.num_embeddings,
+                                num_embeddings=new_num_embeddings,
                                 embedding_dim=child_module.embedding_dim,
                                 direct_anchor_token_id=direct_ids,
                                 encoder_anchor_token_id=encoder_ids,
-                                pretrained_weight=child_module.weight.data.clone(),
+                                pretrained_weight=current_weight,
                                 padding_idx=child_module.padding_idx,
                             )
                         else:
                             new_embedding = embedding_class(
-                                num_embeddings=child_module.num_embeddings,
+                                num_embeddings=new_num_embeddings,
                                 embedding_dim=child_module.embedding_dim,
                                 anchor_token_id=anchor_token_id,
-                                pretrained_weight=child_module.weight.data.clone(),
+                                pretrained_weight=current_weight,
                                 padding_idx=child_module.padding_idx,
                             )
 
