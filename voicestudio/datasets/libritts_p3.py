@@ -29,7 +29,7 @@ _URLS = {
 
 class LIBRITTS_P(LIBRITTS):
     """LibriTTS-P dataset with style and speaker prompts.
-    
+
     Args:
         root (str or Path): Path to the directory where the dataset is found or downloaded.
         url (str, optional): The URL to download the dataset from,
@@ -45,7 +45,7 @@ class LIBRITTS_P(LIBRITTS):
         annotator (str or None, optional):
             Speaker prompt annotator. One of ``["df1", "df2", "df3"]`` or ``None``.
             If ``None``, only style prompts are available. (default: ``None``)
-    
+
     Example:
         >>> dataset = LIBRITTS_P(root="./data", url="train-clean-100", annotator="df1")
         >>> waveform, sr, orig_text, norm_text, spk_id, ch_id, utt_id, styles, speakers = dataset[0]
@@ -147,7 +147,7 @@ class LIBRITTS_P(LIBRITTS):
                 int(row.spk_id): row.speaker_prompt.split(",")
                 for row in speaker_df.itertuples(index=False)
             }
-    
+
     def _filter_valid_samples(self) -> None:
         """Filter valid samples during initialization."""
         self._valid_indices = []
@@ -184,13 +184,13 @@ class LIBRITTS_P(LIBRITTS):
         self, n: int
     ) -> Tuple[Tensor, int, str, str, int, int, str, List[str], Optional[List[str]]]:
         """Load the n-th sample from the dataset.
-        
+
         Args:
             n (int): The index of the sample to be loaded
-        
+
         Returns:
             Tuple of the following items;
-            
+
             Tensor:
                 Waveform
             int:
