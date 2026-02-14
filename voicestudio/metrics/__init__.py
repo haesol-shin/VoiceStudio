@@ -2,7 +2,9 @@
 Audio quality evaluation metrics module.
 """
 
+import importlib
 from enum import Enum
+from typing import TYPE_CHECKING, Type
 
 from .base import (
     BaseMetricCalculator,
@@ -10,11 +12,13 @@ from .base import (
     ModelConfig,
     ModelLoadError,
 )
-from .ffe import FFECalculator
-from .mcd import MCDCalculator
-from .sim import SIMCalculator
-from .utmos import UTMOSCalculator
-from .wer import WERCalculator
+
+if TYPE_CHECKING:
+    from .ffe import FFECalculator
+    from .mcd import MCDCalculator
+    from .sim import SIMCalculator
+    from .utmos import UTMOSCalculator
+    from .wer import WERCalculator
 
 
 class MetricType(Enum):
@@ -27,14 +31,19 @@ class MetricType(Enum):
     MCD = "mcd"
 
 
-# Metric registry for easy access
-METRIC_CALCULATORS = {
-    MetricType.UTMOS: UTMOSCalculator,
-    MetricType.WER: WERCalculator,
-    MetricType.SIM: SIMCalculator,
-    MetricType.FFE: FFECalculator,
-    MetricType.MCD: MCDCalculator,
+_CALCULATOR_MAPPING = {
+    MetricType.UTMOS: ("utmos", "UTMOSCalculator"),
+    MetricType.WER: ("wer", "WERCalculator"),
+    MetricType.SIM: ("sim", "SIMCalculator"),
+    MetricType.FFE: ("ffe", "FFECalculator"),
+    MetricType.MCD: ("mcd", "MCDCalculator"),
 }
+
+
+def _get_calculator_class(metric_type: MetricType) -> Type[BaseMetricCalculator]:
+    module_name, class_name = _CALCULATOR_MAPPING[metric_type]
+    module = importlib.import_module(f".{module_name}", package="voicestudio.metrics")
+    return getattr(module, class_name)
 
 
 def create_calculator(
@@ -53,36 +62,28 @@ def create_calculator(
     Raises:
         ValueError: If metric type is not supported
     """
-    if metric_type not in METRIC_CALCULATORS:
-        available_metrics = list(METRIC_CALCULATORS.keys())
+    try:
+        calculator_class = _get_calculator_class(metric_type)
+        return calculator_class(config)
+    except (KeyError, ImportError, AttributeError) as e:
+        available_metrics = get_available_metrics()
         raise ValueError(
-            f"Unsupported metric: {metric_type}. Available metrics: {available_metrics}"
-        )
-
-    calculator_class = METRIC_CALCULATORS[metric_type]
-    return calculator_class(config)
+            f"Failed to create calculator for {metric_type}. "
+            f"Available metrics: {available_metrics}"
+        ) from e
 
 
 def get_available_metrics() -> list[MetricType]:
     """Get list of available metric types."""
-    return list(METRIC_CALCULATORS.keys())
+    return list(MetricType)
 
 
 __all__ = [
-    # Base classes and exceptions
     "BaseMetricCalculator",
     "ModelConfig",
     "MetricCalculationError",
     "ModelLoadError",
-    # Metric calculators
-    "UTMOSCalculator",
-    "WERCalculator",
-    "SIMCalculator",
-    "FFECalculator",
-    "MCDCalculator",
-    # Enums and registry
     "MetricType",
-    "METRIC_CALCULATORS",
     "create_calculator",
     "get_available_metrics",
 ]
