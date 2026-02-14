@@ -240,7 +240,7 @@ class Qwen3TTSForConditionalGeneration(_Qwen3TTSForConditionalGeneration):
     def generate_voice_design(
         self,
         input_ids: list[torch.Tensor],
-        instruct_ids: Optional[list[torch.Tensor]] = None,
+        instruct_ids: list[torch.Tensor],
         languages: Optional[list[str]] = None,
         non_streaming_mode: bool = False,
         **kwargs,
@@ -311,6 +311,29 @@ class Qwen3TTSForConditionalGeneration(_Qwen3TTSForConditionalGeneration):
         Returns:
             Tuple[List[Tensor], Any]: (talker_codes, generation_info)
         """
+        # Validate model type
+        if speakers is not None and self.tts_model_type != "custom_voice":
+            raise ValueError(
+                f"model with \ntokenizer_type: {self.tokenizer_type}\n"
+                f"tts_model_size: {self.tts_model_size}\n"
+                f"tts_model_type: {self.tts_model_type}\n"
+                "does not support generate_custom_voice, Please check Model Card or Readme for more details."
+            )
+        elif instruct_id is not None and self.tts_model_type != "voice_design":
+            raise ValueError(
+                f"model with \ntokenizer_type: {self.tokenizer_type}\n"
+                f"tts_model_size: {self.tts_model_size}\n"
+                f"tts_model_type: {self.tts_model_type}\n"
+                "does not support generate_voice_design, Please check Model Card or Readme for more details."
+            )
+        elif voice_clone_prompt is not None and self.tts_model_type != "base":
+            raise ValueError(
+                f"model with \ntokenizer_type: {self.tokenizer_type}\n"
+                f"tts_model_size: {self.tts_model_size}\n"
+                f"tts_model_type: {self.tts_model_type}\n"
+                "does not support generate_voice_clone, Please check Model Card or Readme for more details."
+            )
+
         # Validate languages and speakers before generation
         if languages is not None:
             self._validate_languages(languages)
