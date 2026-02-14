@@ -9,6 +9,7 @@ from .ljspeech import LJSpeechSynthesisDataset
 from .vctk import VctkSynthesisDataset
 
 from .libritts_p3 import LIBRITTS_P
+from .libritts_p_custom import LIBRITTS_P_Custom
 
 # Dataset registry for factory pattern
 DATASET_REGISTRY = {
@@ -52,4 +53,5 @@ __all__ = [
     "create_dataset",
     "get_available_datasets",
     "LIBRITTS_P",
+    "LIBRITTS_P_Custom",
 ]
