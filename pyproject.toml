@@ -17,6 +17,9 @@ dependencies = [
     "voicestudio[all]>=1.0.1",
     "hf-xet>=1.1.8",
     "tqdm>=4.67.1",
+    "utmosv2",
+
+    "flash-attn",
 ]
 
 [tool.uv.sources]
