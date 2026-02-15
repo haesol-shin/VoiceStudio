@@ -300,7 +300,7 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
         return_tensors: Literal["pt", "np"] = "pt",
     ):
         """Encoding parameter guide for voice design task"""
-        return self.encode(text=text, speaker=speaker, language=language, instruct=instruct, return_tensors=return_tensors)
+        return self.encode(text=text, language=language, instruct=instruct, return_tensors=return_tensors)
 
     def encode(
         self,
