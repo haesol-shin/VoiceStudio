@@ -3,6 +3,8 @@ from dataclasses import dataclass
 import os
 
 import torch
+from torch.nn.utils.rnn import pad_sequence
+
 from transformers.processing_utils import ImageInput, TextInput, VideoInput, AudioInput, PreTokenizedInput
 from transformers import AutoConfig, AutoModel, AutoFeatureExtractor
 from transformers.feature_extraction_utils import BatchFeature
@@ -293,15 +295,13 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
     def encode(
         self,
         text: Union[str, list[str]],
-        audio: AudioInput | None = None,
-        sampling_rate: int | None = None,
         speaker: Union[str, list[str]] | None = None,
         instruct: Union[str, list[str], dict[str, Any], list[VoiceClonePrompt]] | None = None,
         language: Union[str, list[str]] = None,
         return_tensors: Literal["pt", "np"] = "pt",
     ):
         """Encoding parameter guide for text-to-speech task"""
-        return self(text=text, return_tensors=return_tensors, speaker=speaker, language=language, instruct=instruct)
+        return self(text=text, speaker=speaker, language=language, instruct=instruct, return_tensors=return_tensors)
 
     def __call__(
         self,
@@ -331,6 +331,10 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
         Returns:
             [`BatchFeature`]: Processed inputs containing text and/or audio features.
         """
+        speaker = kwargs.pop("speaker", None)
+        language = kwargs.pop("language", None)
+        instruct = kwargs.pop("instruct", None)
+
         # Validate unsupported modalities
         if images is not None or videos is not None:
             raise ValueError(f"{self.__class__.__name__} does not support image or video inputs.")
@@ -344,21 +348,146 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
             **kwargs,
         )
 
+        # Input validation and normalization
+        #
+        ## Text is required for every task
+        texts = self._ensure_list(text)
+        #
+        ## Language is optional, default to "Auto"
+        languages = self._ensure_list(language) if isinstance(language, list) else ([language] * len(texts) if language is not None else ["Auto"] * len(texts))
+        if len(languages) == 1 and len(texts) > 1:
+            languages = languages * len(texts)
+        if len(texts) != len(languages):
+            raise ValueError(f"Batch size mismatch: text={len(texts)}, language={len(languages)}")
+        #
+        ## Voice clone prompt is required for voice cloning task
+        ## but can be constructed from prompt_audio(audio) and prompt_text
+        voice_clone_prompt = instruct if isinstance(instruct, list) and isinstance(instruct[0], VoiceClonePrompt) else None
+        style_prompt = instruct if voice_clone_prompt is None else None
+        if voice_clone_prompt is None:
+            prompt_audio = kwargs.pop("prompt_audio", audio)  # use audio as default prompt_audio
+            prompt_text = kwargs.pop("prompt_text", None)
+            x_vector_only_mode = kwargs.pop("x_vector_only_mode", False)
+
+            if prompt_audio is None:  # need to check if it is voice cloning task
+                if speaker is not None:
+                    pass  # then this is voice editing task
+                elif style_prompt is not None:
+                    pass  # then this is voice design task
+                else:
+                    raise ValueError("You need to specify either `voice_clone_prompt` or `prompt_audio` input.")
+            voice_clone_prompt = self.create_voice_clone_prompt(ref_audio=prompt_audio, ref_text=prompt_text, x_vector_only_mode=x_vector_only_mode)
+        if voice_clone_prompt is not None:
+            voice_clone_prompt = self._ensure_list(voice_clone_prompt)
+            if len(voice_clone_prompt) == 1 and len(texts) > 1:
+                voice_clone_prompt = voice_clone_prompt * len(texts)
+            if len(voice_clone_prompt) != len(texts):
+                raise ValueError(f"Batch size mismatch: voice_clone_prompt={len(voice_clone_prompt)}, text={len(texts)}")
+        #
+        ## Style prompt will be used for voice design task and voice editing task
+        if style_prompt is not None:
+            style_prompt = self._ensure_list(style_prompt) if isinstance(style_prompt, list) else ([style_prompt] * len(texts) if style_prompt is not None else [""] * len(texts))
+            if len(style_prompt) == 1 and len(texts) > 1:
+                style_prompt = style_prompt * len(texts)
+            if len(style_prompt) != len(texts):
+                raise ValueError(f"Batch size mismatch: style_prompt={len(style_prompt)}, text={len(texts)}")
+        #
+        ## Speaker will be used for voice editing task
+        if speakers is not None:
+            speakers = self._ensure_list(speaker)
+            if len(speakers) == 1 and len(texts) > 1:
+                speakers = speakers * len(texts)
+            if len(speakers) != len(texts):
+                raise ValueError(f"Batch size mismatch: speaker={len(speakers)}, text={len(texts)}")
+
         outputs = {}
 
         # Process text
-        if text is not None:
-            text = self._ensure_list(text)
-            text_inputs = self.tokenizer(text, **output_kwargs["text_kwargs"])
-            outputs.update(text_inputs)
+        texts = [self._build_assistant_text(t) for t in texts]
+        text_inputs = self.tokenizer(texts, return_tensors=return_tensors, **output_kwargs["text_kwargs"])[0]
+        outputs['input_ids'] = text_inputs['input_ids']
 
-        # Process audio
-        if audio is not None:
-            # Extract sr from kwargs if provided
-            sampling_rate = kwargs.get("sampling_rate", None)
+        # Process cloning prompt
+        if voice_clone_prompt:
+            voice_clone_prompt_dict = dict(
+                ref_code=[it.prompt_code for it in voice_clone_prompt],
+                ref_spk_embedding=[it.prompt_spk_embedding for it in voice_clone_prompt],
+                x_vector_only_mode=[it.x_vector_only_mode for it in voice_clone_prompt],
+                icl_mode=[it.icl_mode for it in voice_clone_prompt],
+            )
+            prompt_texts = [it.prompt_text for it in voice_clone_prompt]
+            ref_ids = []
+            for i, rt in enumerate(prompt_texts):
+                if rt is None or rt == "":
+                    ref_ids.append(None)
+                else:
+                    ref_tok = self.tokenizer([self._build_ref_text(rt)], return_tensors=return_tensors, **output_kwargs["text_kwargs"])[0]
+                    ref_ids.append(ref_tok)
+            outputs['voice_clone_prompt'] = voice_clone_prompt_dict
+            outputs['ref_ids'] = ref_ids
 
+        # Process style prompt
+        if style_prompt:
+            instruct_ids: List[Optional[torch.Tensor]] = []
+            for ins in style_prompt:
+                if ins is None or ins == "":
+                    instruct_ids.append(None)
+                else:
+                    instruct_ids.append(self.tokenizer([self._build_instruct_text(ins)], return_tensors=return_tensors, **output_kwargs["text_kwargs"])[0])
+            outputs['instruct_ids'] = instruct_ids
+
+        # Additional args
+        if languages:
+            outputs['languages'] = languages
+        if speakers:
+            outputs['speakers'] = speakers
+
+        return BatchFeature(
+            **outputs,
+            tensor_type=return_tensors,
+        )
+
+    def create_voice_clone_prompt(
+        self,
+        prompt_audio: Union[AudioLike, list[AudioLike]] | None = None,
+        prompt_text: Union[str, list[Optional[str]]] | None = None,
+        x_vector_only_mode: Union[bool, list[bool]] = False,
+    ) -> list[VoiceClonePrompt]:
+        prompt_audio_list = self._ensure_list(prompt_audio)
+        prompt_text_list = self._ensure_list(prompt_text) if isinstance(prompt_text, list) else ([prompt_text] * len(prompt_audio_list))
+        x_vector_list = self._ensure_list(x_vector_only_mode) if isinstance(x_vector_only_mode, list) else ([x_vector_only_mode] * len(prompt_audio_list))
+
+        if len(prompt_text_list) != len(prompt_audio_list) or len(x_vector_list) != len(prompt_audio_list):
+            raise ValueError(
+                f"Batch size mismatch: prompt_audio={len(prompt_audio_list)}, prompt_text={len(prompt_text_list)}, x_vector_only_mode={len(x_vector_list)}"
+            )
+
+        # Union[AudioLike, List[AudioLike]]) -> List[Tuple[np.ndarray, int]]:
+        normalized: List[Tuple[np.ndarray, int]] = []
+        for a in prompt_audio_list:
+            if isinstance(a, str):
+                normalized.append(self._load_audio_to_np(a))
+            elif isinstance(a, tuple) and len(a) == 2 and isinstance(a[0], np.ndarray):
+                normalized.append((a[0].astype(np.float32), int(a[1])))
+            elif isinstance(a, np.ndarray):
+                raise ValueError("For numpy waveform input, pass a tuple (audio, sr).")
+            else:
+                raise TypeError(f"Unsupported audio input type: {type(a)}")
+        for i, a in enumerate(normalized):
+            if a[0].ndim > 1:
+                a[0] = np.mean(a[0], axis=-1).astype(np.float32)
+                normalized[i] = (a[0], a[1])
+
+        prompt_wavs_for_code: list[np.ndarray] = []
+        prompt_sr_for_code: list[int] = []
+        for wav, sr in normalized:
+            prompt_wavs_for_code.append(wav)
+            prompt_sr_for_code.append(sr)
+
+        prompt_codes = []
+        for wav, sr in ([(prompt_wavs_for_code, prompt_sr_for_code[0])] if len(set(prompt_sr_for_code)) == 1 else normalized):
             # Normalize audio inputs (handles paths, base64, numpy arrays)
-            audio_list = self._normalize_audio_inputs(audio, sampling_rate)
+            audio_list = self._normalize_audio_inputs(wav, sr)
 
             # Use feature_extractor to preprocess
             feature_inputs = self.feature_extractor(
@@ -379,53 +508,8 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
                     feature_inputs["padding_mask"].squeeze(1),
                     return_dict=True,
                 )
-
-            # Convert ModelOutput to dict
-            if hasattr(audio_outputs, "__dict__"):
-                audio_dict = {
-                    k: v for k, v in audio_outputs.__dict__.items()
-                    if not k.startswith("_")
-                }
-            else:
-                audio_dict = audio_outputs
-
-            outputs.update(audio_dict)
-
-        return BatchFeature(
-            data=outputs,
-            tensor_type=return_tensors,
-        )
-
-    def create_voice_clone_prompt(
-        self,
-        prompt_audio: Union[AudioLike, list[AudioLike]] | None = None,
-        prompt_text: Union[str, list[Optional[str]]] | None = None,
-        x_vector_only_mode: Union[bool, list[bool]] = False,
-    ) -> list[VoiceClonePrompt]:
-        prompt_audio_list = self._ensure_list(prompt_audio)
-        prompt_text_list = self._ensure_list(prompt_text) if isinstance(prompt_text, list) else ([prompt_text] * len(prompt_audio_list))
-        x_vector_list = self._ensure_list(x_vector_only_mode) if isinstance(x_vector_only_mode, list) else ([x_vector_only_mode] * len(prompt_audio_list))
-
-        if len(prompt_text_list) != len(prompt_audio_list) or len(x_vector_list) != len(prompt_audio_list):
-            raise ValueError(
-                f"Batch size mismatch: prompt_audio={len(prompt_audio_list)}, prompt_text={len(prompt_text_list)}, x_vector_only_mode={len(x_vector_list)}"
-            )
-
-        normalized = self._normalize_audio_inputs(prompt_audio_list)
-
-        prompt_wavs_for_code: list[np.ndarray] = []
-        prompt_sr_for_code: list[int] = []
-        for wav, sr in normalized:
-            prompt_wavs_for_code.append(wav)
-            prompt_sr_for_code.append(sr)
-
-        if len(set(prompt_sr_for_code)) == 1:
-            enc = self.audio_tokenizer.encode(prompt_wavs_for_code, sr=prompt_sr_for_code[0])
-            prompt_codes = enc.audio_codes
-        else:
-            prompt_codes = []
-            for wav, sr in normalized:
-                prompt_codes.append(self.audio_tokenizer.encode(wav, sr=sr).audio_codes[0])
+                audio_codes = audio_outputs.audio_codes
+            prompt_codes.append(audio_codes if len(set(prompt_sr_for_code)) == 1 else audio_codes[0])
 
         items: list[VoiceClonePrompt] = []
         for i, ((wav, sr), code, rtext, xvec_only) in enumerate(zip(normalized, prompt_codes, prompt_text_list, x_vector_list)):
@@ -474,12 +558,7 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
                 - List of decoded waveforms (float32 numpy arrays)
                 - Output sampling rate
         """
-        if not hasattr(self, "audio_tokenizer"):
-            raise ValueError("audio_tokenizer is required for decoding.")
-
-        from torch.nn.utils.rnn import pad_sequence
-
-        model_type = self.audio_tokenizer.config.model_type
+        model_type = self.audio_tokenizer.get_model_type()
         device = self._get_audio_tokenizer_device()
 
         def _to_tensor(x, dtype=None):
@@ -509,10 +588,13 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
 
         # Prepare audio_codes
         if isinstance(audio_codes_list, torch.Tensor):
+            # Could be a single sample tensor or an already padded batch tensor.
             t = audio_codes_list
             if t.dim() == 1:
+                # 25Hz single sample: (C,) -> (1, C)
                 t = t.unsqueeze(0)
             elif t.dim() == 2:
+                # 12Hz single sample: (C, Q) -> (1, C, Q)
                 t = t.unsqueeze(0)
             audio_codes_padded = t.to(device)
         else:
@@ -527,7 +609,7 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
                 # Prepare xvectors
                 if isinstance(xvectors_list, torch.Tensor):
                     xvectors_batch = xvectors_list
-                    if xvectors_batch.dim() == 1:
+                    if xvectors_batch.dim() == 1:  # (D,) -> (1, D)
                         xvectors_batch = xvectors_batch.unsqueeze(0)
                     xvectors_batch = xvectors_batch.to(device).to(self.audio_tokenizer.dtype)
                 else:
@@ -537,7 +619,7 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
                 # Prepare ref_mels
                 if isinstance(ref_mels_list, torch.Tensor):
                     ref_mels_padded = ref_mels_list
-                    if ref_mels_padded.dim() == 2:
+                    if ref_mels_padded.dim() == 2:  # (T, M) -> (1, T, M)
                         ref_mels_padded = ref_mels_padded.unsqueeze(0)
                     ref_mels_padded = ref_mels_padded.to(device).to(self.audio_tokenizer.dtype)
                 else:
