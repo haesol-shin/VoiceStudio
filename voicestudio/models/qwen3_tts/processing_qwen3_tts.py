@@ -381,18 +381,19 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
             x_vector_only_mode = kwargs.pop("x_vector_only_mode", False)
             sampling_rate = kwargs.pop("sampling_rate", None)
 
-            if prompt_audio is None:  # need to check if it is voice cloning task
+            if prompt_audio is None:  # need to check if it is voice cloning task, and then alert
                 if speaker is not None:
                     pass  # then this is voice editing task
                 elif style_prompt is not None:
                     pass  # then this is voice design task
                 else:
                     raise ValueError("You need to specify either `voice_clone_prompt` or `prompt_audio` input.")
-            voice_clone_prompt = self.create_voice_clone_prompt(
-                prompt_audio=prompt_audio, prompt_text=prompt_text,
-                x_vector_only_mode=x_vector_only_mode, sampling_rate=sampling_rate,
-                return_tensors=return_tensors, **kwargs
-            )
+            else:  # prompt_audio is not None, then this is voice cloning task
+                voice_clone_prompt = self.create_voice_clone_prompt(
+                    prompt_audio=prompt_audio, prompt_text=prompt_text,
+                    x_vector_only_mode=x_vector_only_mode, sampling_rate=sampling_rate,
+                    return_tensors=return_tensors, **kwargs
+                )
         if voice_clone_prompt is not None:
             voice_clone_prompt = self._ensure_list(voice_clone_prompt)
             if len(voice_clone_prompt) == 1 and len(texts) > 1:
