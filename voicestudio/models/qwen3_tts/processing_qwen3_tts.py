@@ -394,6 +394,7 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
                     x_vector_only_mode=x_vector_only_mode, sampling_rate=sampling_rate,
                     return_tensors=return_tensors, **kwargs
                 )
+        voice_clone_prompts = None
         if voice_clone_prompt is not None:
             voice_clone_prompts = self._ensure_list(voice_clone_prompt)
             if len(voice_clone_prompts) == 1 and len(texts) > 1:
@@ -402,6 +403,7 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
                 raise ValueError(f"Batch size mismatch: voice_clone_prompt={len(voice_clone_prompts)}, text={len(texts)}")
         #
         ## Style prompt will be used for voice design task and voice editing task
+        style_prompts = None
         if style_prompt is not None:
             style_prompts = self._ensure_list(style_prompt) if isinstance(style_prompt, list) else ([style_prompt] * len(texts) if style_prompt is not None else [""] * len(texts))
             if len(style_prompts) == 1 and len(texts) > 1:
@@ -410,6 +412,7 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
                 raise ValueError(f"Batch size mismatch: style_prompt={len(style_prompts)}, text={len(texts)}")
         #
         ## Speaker will be used for voice editing task
+        speakers = None
         if speaker is not None:
             speakers = self._ensure_list(speaker)
             if len(speakers) == 1 and len(texts) > 1:
