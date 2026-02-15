@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass
 
 import torch
-import numpy as np
 
 try:
     from ..._qwen3_tts.inference.qwen3_tts_model import AudioLike, VoiceClonePromptItem, Qwen3TTSModel as _Qwen3TTSModel
@@ -29,7 +29,7 @@ except ImportError:
     )
 
 from transformers import logging
-from .processing_qwen3_tts import Qwen3TTSProcessor
+from transformers.utils import ModelOutput
 
 
 logger = logging.get_logger(__name__)
@@ -42,6 +42,27 @@ class DummyTokenizer:
 
 
 modeling_qwen3_tts.Qwen3TTSTokenizer = DummyTokenizer
+
+
+@dataclass
+class Qwen3TTSGenerateOutput(ModelOutput):
+    """
+    Output of Qwen3TTS generation.
+
+    Args:
+        audio_codes (`List[torch.Tensor]`):
+            Audio codes ready for decoding. For voice clone with ICL mode,
+            ref_code is already concatenated at the beginning.
+            Shape: [(T1,), (T2,), ...] for 25Hz or [(T1, Q), (T2, Q), ...] for 12Hz
+        hidden_states (`List[torch.Tensor]`, *optional*):
+            Hidden states from the generation process.
+        ref_code_lengths (`List[int]`, *optional*):
+            Length of ref_code for each sample (for voice clone ICL mode).
+            Used to trim the decoded waveform. None for non-voice-clone tasks.
+    """
+    audio_codes: List[torch.Tensor]
+    hidden_states: Optional[List[torch.Tensor]] = None
+    ref_code_lengths: Optional[List[int]] = None
 
 
 class Qwen3TTSForConditionalGeneration(_Qwen3TTSForConditionalGeneration):
@@ -289,8 +310,9 @@ class Qwen3TTSForConditionalGeneration(_Qwen3TTSForConditionalGeneration):
         languages: Optional[list[str]] = None,
         speakers: Optional[list[str]] = None,
         non_streaming_mode: bool = False,
+        return_dict: bool = True,
         **kwargs,
-    ) -> Tuple[List[torch.Tensor], Any]:
+    ) -> Union[Tuple[List[torch.Tensor], Any], Qwen3TTSGenerateOutput]:
         """
         Unified generate method that handles all TTS tasks.
 
@@ -322,7 +344,9 @@ class Qwen3TTSForConditionalGeneration(_Qwen3TTSForConditionalGeneration):
                 And any other parameters supported by parent generate()
 
         Returns:
-            Tuple[List[Tensor], Any]: (talker_codes, generation_info)
+        `Qwen3TTSGenerateOutput` or `Tuple[List[Tensor], Any]`:
+            - If return_dict=True: Qwen3TTSGenerateOutput with audio_codes, hidden_states, and voice_clone_prompt
+            - If return_dict=False: (talker_codes, hidden_states) tuple
         """
         # Validate model type
         if speakers is not None and self.tts_model_type != "custom_voice":
@@ -362,7 +386,7 @@ class Qwen3TTSForConditionalGeneration(_Qwen3TTSForConditionalGeneration):
         merged_kwargs = self._merge_generate_kwargs(**kwargs)
 
         # Call parent generate with validated and merged parameters
-        return super().generate(
+        talker_codes_list, talker_hidden_states_list = super().generate(
             input_ids=input_ids,
             instruct_ids=instruct_ids,
             ref_ids=ref_ids,
@@ -371,4 +395,38 @@ class Qwen3TTSForConditionalGeneration(_Qwen3TTSForConditionalGeneration):
             speakers=speakers,
             non_streaming_mode=non_streaming_mode,
             **merged_kwargs,
+        )
+
+        if not return_dict:
+            return talker_codes_list, talker_hidden_states_list
+
+        normalized_codes = []
+        ref_code_lengths = []
+
+        if voice_clone_prompt is not None:
+            ref_code_list = voice_clone_prompt.get("ref_code", None)
+            icl_mode_list = voice_clone_prompt.get("icl_mode", None)
+
+            for i, codes in enumerate(talker_codes_list):
+                if (ref_code_list is not None and
+                        i < len(ref_code_list) and
+                        ref_code_list[i] is not None and
+                        icl_mode_list is not None and
+                        i < len(icl_mode_list) and
+                        icl_mode_list[i]):
+
+                    ref_code = ref_code_list[i].to(codes.device)
+                    normalized_codes.append(torch.cat([ref_code, codes], dim=0))
+                    ref_code_lengths.append(ref_code.shape[0])
+                else:
+                    normalized_codes.append(codes)
+                    ref_code_lengths.append(0)
+        else:
+            normalized_codes = talker_codes_list
+            ref_code_lengths = None
+
+        return Qwen3TTSGenerateOutput(
+            audio_codes=normalized_codes,
+            hidden_states=talker_hidden_states_list,
+            ref_code_lengths=ref_code_lengths,
         )
