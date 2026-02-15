@@ -28,10 +28,13 @@ except ImportError:
         Qwen3TTSForConditionalGeneration as _Qwen3TTSForConditionalGeneration,
     )
 
-
+from transformers import logging
 from .processing_qwen3_tts import Qwen3TTSProcessor
 
 modeling_qwen3_tts.Qwen3TTSTokenizer = Qwen3TTSProcessor
+
+
+logger = logging.get_logger(__name__)
 
 
 class Qwen3TTSForConditionalGeneration(_Qwen3TTSForConditionalGeneration):
@@ -340,6 +343,10 @@ class Qwen3TTSForConditionalGeneration(_Qwen3TTSForConditionalGeneration):
 
         if speakers is not None:
             self._validate_speakers(speakers)
+
+            if self.tts_model_size in "0b6":  # for 0b6 model, instruct is not supported
+                logger.warning("instruct_id is not supported for 0b6 model, please remove it")
+                instruct_id = None
 
         # Merge generation kwargs with defaults from generate_config
         merged_kwargs = self._merge_generate_kwargs(**kwargs)
