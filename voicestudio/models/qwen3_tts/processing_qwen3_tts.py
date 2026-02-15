@@ -472,7 +472,7 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
         return_tensors: Literal["pt", "np"] = "pt",
         **kwargs: Unpack[Qwen3TTSProcessorKwargs]
     ) -> list[VoiceClonePrompt]:
-        sampling_rate = self.audio_tokenizer.sampling_rate if sampling_rate is None else sampling_rate
+        sampling_rate = self.feature_extractor.sampling_rate if sampling_rate is None else sampling_rate
         prompt_audio_list = self._ensure_list(prompt_audio)
         prompt_text_list = self._ensure_list(prompt_text) if isinstance(prompt_text, list) else ([prompt_text] * len(prompt_audio_list))
         x_vector_list = self._ensure_list(x_vector_only_mode) if isinstance(x_vector_only_mode, list) else ([x_vector_only_mode] * len(prompt_audio_list))
