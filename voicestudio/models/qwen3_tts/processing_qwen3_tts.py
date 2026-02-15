@@ -395,22 +395,22 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
                     return_tensors=return_tensors, **kwargs
                 )
         if voice_clone_prompt is not None:
-            voice_clone_prompt = self._ensure_list(voice_clone_prompt)
-            if len(voice_clone_prompt) == 1 and len(texts) > 1:
-                voice_clone_prompt = voice_clone_prompt * len(texts)
-            if len(voice_clone_prompt) != len(texts):
-                raise ValueError(f"Batch size mismatch: voice_clone_prompt={len(voice_clone_prompt)}, text={len(texts)}")
+            voice_clone_prompts = self._ensure_list(voice_clone_prompt)
+            if len(voice_clone_prompts) == 1 and len(texts) > 1:
+                voice_clone_prompts = voice_clone_prompts * len(texts)
+            if len(voice_clone_prompts) != len(texts):
+                raise ValueError(f"Batch size mismatch: voice_clone_prompt={len(voice_clone_prompts)}, text={len(texts)}")
         #
         ## Style prompt will be used for voice design task and voice editing task
         if style_prompt is not None:
-            style_prompt = self._ensure_list(style_prompt) if isinstance(style_prompt, list) else ([style_prompt] * len(texts) if style_prompt is not None else [""] * len(texts))
-            if len(style_prompt) == 1 and len(texts) > 1:
-                style_prompt = style_prompt * len(texts)
-            if len(style_prompt) != len(texts):
-                raise ValueError(f"Batch size mismatch: style_prompt={len(style_prompt)}, text={len(texts)}")
+            style_prompts = self._ensure_list(style_prompt) if isinstance(style_prompt, list) else ([style_prompt] * len(texts) if style_prompt is not None else [""] * len(texts))
+            if len(style_prompts) == 1 and len(texts) > 1:
+                style_prompts = style_prompts * len(texts)
+            if len(style_prompts) != len(texts):
+                raise ValueError(f"Batch size mismatch: style_prompt={len(style_prompts)}, text={len(texts)}")
         #
         ## Speaker will be used for voice editing task
-        if speakers is not None:
+        if speaker is not None:
             speakers = self._ensure_list(speaker)
             if len(speakers) == 1 and len(texts) > 1:
                 speakers = speakers * len(texts)
@@ -425,14 +425,14 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
         outputs['input_ids'] = text_inputs['input_ids']
 
         # Process cloning prompt
-        if voice_clone_prompt:
+        if voice_clone_prompts is not None:
             voice_clone_prompt_dict = dict(
-                ref_code=[it.prompt_code for it in voice_clone_prompt],
-                ref_spk_embedding=[it.prompt_spk_embedding for it in voice_clone_prompt],
-                x_vector_only_mode=[it.x_vector_only_mode for it in voice_clone_prompt],
-                icl_mode=[it.icl_mode for it in voice_clone_prompt],
+                ref_code=[it.prompt_code for it in voice_clone_prompts],
+                ref_spk_embedding=[it.prompt_spk_embedding for it in voice_clone_prompts],
+                x_vector_only_mode=[it.x_vector_only_mode for it in voice_clone_prompts],
+                icl_mode=[it.icl_mode for it in voice_clone_prompts],
             )
-            prompt_texts = [it.prompt_text for it in voice_clone_prompt]
+            prompt_texts = [it.prompt_text for it in voice_clone_prompts]
             ref_ids = []
             for i, rt in enumerate(prompt_texts):
                 if rt is None or rt == "":
@@ -444,9 +444,9 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
             outputs['ref_ids'] = ref_ids
 
         # Process style prompt
-        if style_prompt:
+        if style_prompts:
             instruct_ids: List[Optional[torch.Tensor]] = []
-            for ins in style_prompt:
+            for ins in style_prompts:
                 if ins is None or ins == "":
                     instruct_ids.append(None)
                 else:
