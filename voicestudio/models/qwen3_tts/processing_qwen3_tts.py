@@ -165,8 +165,12 @@ class Qwen3TTSProcessor(_Qwen3TTSProcessor):
 
         # If audio_tokenizer wasn't loaded (first time from Qwen repo), load it manually
         if not hasattr(processor, "audio_tokenizer") or processor.audio_tokenizer is None:
+            model_kwargs = {
+                k: v for k, v in kwargs.items()
+                if k in ["device", "device_map", "dtype", "torch_dtype", "attn_implementation", "trust_remote_code"]
+            }
             processor.audio_tokenizer = AutoModel.from_pretrained(
-                pretrained_model_name_or_path, subfolder=audio_tokenizer_subfolder, **kwargs
+                pretrained_model_name_or_path, subfolder=audio_tokenizer_subfolder, **model_kwargs
             )
 
         # If feature_extractor wasn't loaded, load it manually
