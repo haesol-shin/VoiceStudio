@@ -3,3 +3,26 @@
 ## Title
 - Speaker Inconsistency
 
+
+## Reproduce
+
+Install required apt packages
+
+```bash
+sudo apt-get update
+sudo apt-get install -y protobuf-compiler libprotobuf-dev
+```
+
+Install uv
+
+```bash
+pip install uv
+```
+
+Sync uv
+
+```bash
+uv sync --frozen
+```
+
+
