@@ -4,7 +4,7 @@ Dataset loaders for synthesis pipeline.
 
 from ..metrics.presets import DatasetType
 from .base import BaseSynthesisDataset
-# from .libritts import LibriTTSSynthesisDataset
+from .libritts import LibriTTSSynthesisDataset
 from .ljspeech import LJSpeechSynthesisDataset
 from .vctk import VctkSynthesisDataset
 
@@ -15,7 +15,7 @@ from .libritts_p_custom import LIBRITTS_P_Custom
 DATASET_REGISTRY = {
     DatasetType.VCTK: VctkSynthesisDataset,
     DatasetType.LJSPEECH: LJSpeechSynthesisDataset,
-    # DatasetType.LIBRITTS: LibriTTSSynthesisDataset,
+    DatasetType.LIBRITTS: LibriTTSSynthesisDataset,
 }
 
 
