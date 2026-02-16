@@ -42,7 +42,7 @@ _CALCULATOR_MAPPING = {
 
 def _get_calculator_class(metric_type: MetricType) -> Type[BaseMetricCalculator]:
     module_name, class_name = _CALCULATOR_MAPPING[metric_type]
-    module = importlib.import_module(f".{module_name}", package="voicestudio.metrics")
+    module = importlib.import_module(f".{module_name}", package="spk_incon.metrics")
     return getattr(module, class_name)
 
 
