@@ -17,9 +17,17 @@ dependencies = [
     "voicestudio[all]>=1.0.1",
     "hf-xet>=1.1.8",
     "tqdm>=4.67.1",
+    "descript-audiotools",
+    "speechbrain",
     "utmosv2",
-
     "flash-attn",
+]
+
+[tool.uv]
+override-dependencies = [
+    "onnx>=1.20.0",
+    "protobuf>=4.25.1",
+    "encodec>=0.1.1"
 ]
 
 [tool.uv.sources]
@@ -46,6 +54,8 @@ flash-attn = [
     { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.12/flash_attn-2.8.3+cu126torch2.10-cp313-cp313-win_amd64.whl", marker = "python_version == '3.13' and platform_system == 'Windows'" },
     { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.12/flash_attn-2.8.3+cu126torch2.10-cp314-cp314-win_amd64.whl", marker = "python_version == '3.14' and platform_system == 'Windows'" },
 ]
+descript-audiotools = { git = "https://github.com/latentforge/audiotools" }
+speechbrain = { git = "https://github.com/speechbrain/speechbrain" }
 utmosv2 = { git = "https://github.com/sarulab-speech/UTMOSv2" }
 
 [tool.uv.extra-build-dependencies]
