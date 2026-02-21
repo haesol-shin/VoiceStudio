@@ -39,6 +39,9 @@ class LIBRITTS_P_Custom(Dataset):
         max_z_score (float, optional): Maximum modified Z-score for outlier filtering.
             Samples with distance Z-scores above this threshold are excluded. 
             (default: ``3.5``)
+        min_group_size (int, optional): Minimum number of samples required per speaker group.
+            Groups with fewer samples than this threshold are excluded.
+            (default: ``10``)
         transform (Callable, optional): A function/transform that takes in a sample
             dictionary and returns a transformed version. (default: ``None``)
         download (bool, optional): Whether to download the dataset if not found at root.
@@ -52,6 +55,7 @@ class LIBRITTS_P_Custom(Dataset):
         url: str = "train-clean-100",
         annotator: str = "df1",
         max_z_score: float = 3.5,
+        min_group_size: int = 10,
         transform: Optional[Callable] = None,
         download: bool = False,
         force_reload: bool = False,
@@ -60,6 +64,7 @@ class LIBRITTS_P_Custom(Dataset):
         self.url = url
         self.annotator = annotator
         self.max_z_score = max_z_score
+        self.min_group_size = min_group_size
         self.transform = transform
         self.download = download
         self.epoch = 0
@@ -71,6 +76,7 @@ class LIBRITTS_P_Custom(Dataset):
         self.style_map, self.speaker_map = load_libritts_p_prompts(self.root, self.annotator)
         
         self._filter_outliers()
+        self._filter_min_group_size()
 
     def _load_or_create_dataset(self, force_reload: bool) -> HFDataset:
         """Loads the dataset from disk or triggers creation if missing.
@@ -202,6 +208,22 @@ class LIBRITTS_P_Custom(Dataset):
             lambda x: x['distance_z_score'] <= self.max_z_score if x['distance_z_score'] is not None else True
         )
         print(f"[INFO] Filtered: {len(self.data_source)} -> {len(self.data)} samples.")
+
+    def _filter_min_group_size(self) -> None:
+        """Excludes samples whose speaker groups have fewer than min_group_size samples.
+
+        Returns:
+            None
+        """
+        if self.min_group_size is None:
+            return
+
+        before = len(self.data)
+        print(f"[INFO] Filtering groups with fewer than {self.min_group_size} samples...")
+        self.data = self.data.filter(
+            lambda x: x['group_size'] >= self.min_group_size
+        )
+        print(f"[INFO] Filtered: {before} -> {len(self.data)} samples.")
 
     def set_epoch(self, epoch: int) -> None:
         """Sets the current epoch to ensure deterministic variety in prompt mixing.
