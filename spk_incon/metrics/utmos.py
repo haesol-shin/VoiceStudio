@@ -77,20 +77,34 @@ class UTMOSCalculator(BaseMetricCalculator):
     def calculate_batch_optimized(self, pairs: list[tuple[Path, Path]]) -> list[float]:
         """Optimized batch calculation for UTMOS."""
         try:
-            # Extract synthesis paths only (UTMOS doesn't use reference)
-            results = []
-            self.logger.info(f"Calculating UTMOS scores for {len(pairs)} pairs")
-            for _, syn_path in tqdm(pairs, desc="Calculating UTMOS scores", leave=False):
-                # Path input is now automatically tracked as orig_synthesis in base.py
-                results.append(self(synthesis=syn_path))
-            
-            return results
+            syn_paths = [syn_path for _, syn_path in pairs]
+            dirs = set(p.parent for p in syn_paths)
+            if len(dirs) != 1:
+                raise MetricCalculationError("UTMOSv2 requires all synthesis audio files to be in the same directory.")
 
+            input_dir = next(iter(dirs))
+            with open(os.devnull, "w") as devnull, \
+                redirect_stdout(devnull), redirect_stderr(devnull):
+                results_raw = self.utmos_model.predict(input_dir=str(input_dir))
+
+            results_map = {Path(r["file_path"]): r["predicted_mos"] for r in results_raw}
+            return [float(results_map[p]) for p in syn_paths]
         except Exception as e:
-            self.logger.warning(
-                f"Batch processing failed, falling back to individual: {e}"
-            )
-            return super().calculate_batch_optimized(pairs)
+            try:
+                # Extract synthesis paths only (UTMOS doesn't use reference)
+                results = []
+                self.logger.info(f"Calculating UTMOS scores for {len(pairs)} pairs")
+                for _, syn_path in tqdm(pairs, desc="Calculating UTMOS scores", leave=False):
+                    # Path input is now automatically tracked as orig_synthesis in base.py
+                    results.append(self(synthesis=syn_path))
+                
+                return results
+
+            except Exception as e:
+                self.logger.warning(
+                    f"Batch processing failed, falling back to individual: {e}"
+                )
+                return super().calculate_batch_optimized(pairs)
 
     def get_name(self) -> str:
         return "UTMOS"
