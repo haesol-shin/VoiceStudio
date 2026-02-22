@@ -143,11 +143,12 @@ class EvaluationPipeline:
 
         return pairs
 
-    @staticmethod
+    @classmethod
     def evaluate_pairs_with_grouping(
         pairs: list[dict],
         metric_types: list[MetricType],
-        batch_size: int = 16
+        batch_size: int = 16,
+        verbose: bool = True
     ) -> dict[MetricType, dict[str, list[float]]]:
         """Evaluate pairs and group results by reference ID.
 
@@ -162,7 +163,7 @@ class EvaluationPipeline:
         results = {}
 
         for metric_type in metric_types:
-            if self.verbose: print(f"\nCalculating {metric_type.value}...")
+            if verbose: print(f"\nCalculating {metric_type.value}...")
 
             config = ModelConfig(
                 name=metric_type.value,
@@ -368,7 +369,7 @@ class EvaluationPipeline:
                 print(f"No audio samples found for {method.value}")
                 continue
 
-            grouped_results = self.evaluate_pairs_with_grouping(pairs, metric_types)
+            grouped_results = self.evaluate_pairs_with_grouping(pairs, metric_types, verbose=self.verbose)
 
             if method == GenerationMethod.METHOD1:
                 stats = self.calculate_method1_statistics(grouped_results)
