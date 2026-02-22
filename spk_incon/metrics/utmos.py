@@ -2,9 +2,10 @@
 UTMOS calculator using UTMOSv2.
 """
 import os
+import sys
 import random
 from pathlib import Path
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, redirect_stderr
 
 import numpy as np
 import torch
@@ -63,7 +64,7 @@ class UTMOSCalculator(BaseMetricCalculator):
         try:         
             orig_synthesis = kwargs.get("orig_synthesis")
             if orig_synthesis and isinstance(orig_synthesis, (Path, str)):
-                with redirect_stdout(open(os.devnull, "w")):
+                with open(os.devnull, "w") as devnull, redirect_stdout(devnull), redirect_stderr(devnull):
                     score = self.utmos_model.predict(input_path=orig_synthesis)
             else:
                 raise MetricCalculationError("UTMOSv2 requires a file path for prediction. Use forward(synthesis=Path).")

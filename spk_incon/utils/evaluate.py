@@ -252,7 +252,7 @@ class EvaluationPipeline:
 
                     results[metric_type] = grouped_scores
                     total_scores = sum(len(scores) for scores in grouped_scores.values())
-                    if self.verbose: print(f"Grouped scores: {total_scores} scores in {len(grouped_scores)} groups")
+                    if verbose: print(f"Grouped scores: {total_scores} scores in {len(grouped_scores)} groups")
 
             except Exception as e:
                 print(f"Error calculating {metric_type.value}: {e}")
