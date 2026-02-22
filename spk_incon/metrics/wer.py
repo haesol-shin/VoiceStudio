@@ -302,7 +302,7 @@ if __name__ == "__main__":
     config = ModelConfig(
         name="wer",
         batch_size=8,
-        device="cuda" if torch.cuda.is_available() else "cpu",
+        device="cuda:0" if torch.cuda.is_available() else "cpu",
         additional_params={"model_name": "base", "language": "en"},
     )
 

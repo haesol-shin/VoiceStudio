@@ -15,10 +15,12 @@ from ..metrics.presets import DatasetType, GenerationMethod, ModelType
 class EvaluationPipeline:
     """Pipeline for evaluating synthesized audio quality."""
 
-    def __init__(self, base_dir: Path = Path("results")):
+    def __init__(self, base_dir: Path = Path("results"), html: bool = False, verbose: bool = True):
         self.base_dir = Path(base_dir)
         self.ref_dir = self.base_dir / "ref"
         self.syn_dir = self.base_dir / "syn"
+        self.verbose = verbose
+        self.html = html
 
     @staticmethod
     def _load_metadata(set_dir: Path) -> dict:
@@ -160,12 +162,12 @@ class EvaluationPipeline:
         results = {}
 
         for metric_type in metric_types:
-            print(f"\nCalculating {metric_type.value}...")
+            if self.verbose: print(f"\nCalculating {metric_type.value}...")
 
             config = ModelConfig(
                 name=metric_type.value,
                 batch_size=batch_size,
-                device="cuda"
+                device="cuda:0"
             )
 
             try:
@@ -249,7 +251,7 @@ class EvaluationPipeline:
 
                     results[metric_type] = grouped_scores
                     total_scores = sum(len(scores) for scores in grouped_scores.values())
-                    print(f"Grouped scores: {total_scores} scores in {len(grouped_scores)} groups")
+                    if self.verbose: print(f"Grouped scores: {total_scores} scores in {len(grouped_scores)} groups")
 
             except Exception as e:
                 print(f"Error calculating {metric_type.value}: {e}")
@@ -354,12 +356,13 @@ class EvaluationPipeline:
         results = {}
 
         for method in methods:
-            print(f"\n{'='*60}")
-            print(f"Evaluating: {dataset_type.value} -> {model_type.value} -> {method.value}")
-            print(f"{'='*60}")
+            if self.verbose:
+                print(f"\n{'='*60}")
+                print(f"Evaluating: {dataset_type.value} -> {model_type.value} -> {method.value}")
+                print(f"{'='*60}")
 
             pairs = self.get_audio_pairs_with_metadata(dataset_type, model_type, method)
-            print(f"Found {len(pairs)} primary audio pairs/files")
+            if self.verbose: print(f"Found {len(pairs)} primary audio pairs/files")
 
             if not pairs:
                 print(f"No audio samples found for {method.value}")
@@ -373,12 +376,12 @@ class EvaluationPipeline:
                 stats = self.calculate_method2_statistics(grouped_results)
 
             results[method] = stats
-            self.print_markdown_table(method, stats)
+            self.print_markdown_table(method, stats, self.html)
 
         return results
 
     @staticmethod
-    def print_markdown_table(method: GenerationMethod, stats: dict[str, float]) -> None:
+    def print_markdown_table(method: GenerationMethod, stats: dict[str, float], html: bool = False) -> None:
         """Print statistics in a Markdown table format with specific ordering and proper alignment."""
         # Metric order: UTMOS, WER, COS (SIM), FFE, MCD
         # Stat order: Mean, Std, Median, Avg Std, Avg CV
@@ -421,50 +424,77 @@ class EvaluationPipeline:
             print("No data available")
             return
 
-        # Calculate column widths
         header_row = ["Metric"] + [s[0] for s in stat_keys]
-        col_widths = [len(h) for h in header_row]
-        
-        for row in data_rows:
-            for i, item in enumerate(row):
-                col_widths[i] = max(col_widths[i], len(item))
+        if html:
+            from IPython.display import display, HTML
 
-        # Add padding
-        col_widths = [w + 2 for w in col_widths]
+            # Build HTML table
+            html = f"<h3>Evaluation Results: {method.value}</h3>"
+            html += "<table style='border-collapse: collapse; font-family: monospace;'>"
 
-        print(f"\n### Evaluation Results: {method.value}")
+            # Header
+            html += "<thead><tr>"
+            for i, h in enumerate(header_row):
+                align = "left" if i == 0 else "center"
+                html += f"<th style='border: 1px solid #ccc; padding: 6px 12px; text-align: {align}; background: #f0f0f0;'>{h}</th>"
+            html += "</tr></thead>"
 
-        # Print header
-        header_str = "|"
-        for i, item in enumerate(header_row):
-            if i == 0:
-                # Left-align metric names
-                header_str += " " + item.ljust(col_widths[i] - 1) + "|"
-            else:
-                # Center-align stat names
-                header_str += item.center(col_widths[i]) + "|"
-        print(header_str)
+            # Data rows
+            html += "<tbody>"
+            for row in data_rows:
+                html += "<tr>"
+                for i, item in enumerate(row):
+                    align = "left" if i == 0 else "center"
+                    html += f"<td style='border: 1px solid #ccc; padding: 6px 12px; text-align: {align};'>{item}</td>"
+                html += "</tr>"
+            html += "</tbody></table>"
 
-        # Print separator
-        sep_str = "|"
-        # First column left-aligned
-        sep_str += " " + ("-" * (col_widths[0] - 2)) + " |"
-        # Other columns center-aligned
-        for w in col_widths[1:]:
-            sep_str += ":" + ("-" * (w - 2)) + ":|"
-        print(sep_str)
+            display(HTML(html))
+        else:
+            # Calculate column widths
+            col_widths = [len(h) for h in header_row]
+            
+            for row in data_rows:
+                for i, item in enumerate(row):
+                    col_widths[i] = max(col_widths[i], len(item))
 
-        # Print data rows
-        for row in data_rows:
-            row_str = "|"
-            for i, item in enumerate(row):
+            # Add padding
+            col_widths = [w + 2 for w in col_widths]
+
+            print(f"\n### Evaluation Results: {method.value}")
+
+            # Print header
+            header_str = "|"
+            for i, item in enumerate(header_row):
                 if i == 0:
                     # Left-align metric names
-                    row_str += " " + item.ljust(col_widths[i] - 1) + "|"
+                    header_str += " " + item.ljust(col_widths[i] - 1) + "|"
                 else:
-                    # Center-align numbers
-                    row_str += item.center(col_widths[i]) + "|"
-            print(row_str)
+                    # Center-align stat names
+                    header_str += item.center(col_widths[i]) + "|"
+            print(header_str)
+
+            # Print separator
+            sep_str = "|"
+            # First column left-aligned
+            sep_str += " " + ("-" * (col_widths[0] - 2)) + " |"
+            # Other columns center-aligned
+            for w in col_widths[1:]:
+                sep_str += ":" + ("-" * (w - 2)) + ":|"
+            print(sep_str)
+
+            # Print data rows
+            for row in data_rows:
+                row_str = "|"
+                for i, item in enumerate(row):
+                    if i == 0:
+                        # Left-align metric names
+                        row_str += " " + item.ljust(col_widths[i] - 1) + "|"
+                    else:
+                        # Center-align numbers
+                        row_str += item.center(col_widths[i]) + "|"
+                print(row_str)
+
     @staticmethod
     def save_results_to_csv(
         results: dict[GenerationMethod, dict[str, float]],

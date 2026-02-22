@@ -228,7 +228,7 @@ class BaseMetricCalculator(ABC):
 
         results = []
         total_pairs = len(pairs)
-        iterator = tqdm(pairs, desc=f"Calculating {self.get_name()}", disable=False)
+        iterator = tqdm(pairs, desc=f"Calculating {self.get_name()}", disable=False, leave=False)
 
         for i, (ref_path, syn_path) in enumerate(iterator):
             try:

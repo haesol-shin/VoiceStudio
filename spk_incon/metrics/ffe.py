@@ -241,7 +241,7 @@ class FFECalculator(BaseMetricCalculator):
             f0_features = {}
 
             self.logger.info(f"Extracting F0 features for {len(all_paths)} unique files")
-            for audio_path in tqdm(all_paths, desc="Extracting F0 features"):
+            for audio_path in tqdm(all_paths, desc="Extracting F0 features", leave=False):
                 try:
                     f0_features[audio_path] = self.extract_f0(audio_path)
                 except Exception as e:

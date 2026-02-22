@@ -1,7 +1,7 @@
 """
 UTMOS calculator using UTMOSv2.
 """
-
+import os
 import random
 from pathlib import Path
 from contextlib import redirect_stdout
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     config = ModelConfig(
         name="utmos",
         batch_size=8,
-        device="cuda" if torch.cuda.is_available() else "cpu",
+        device="cuda:0" if torch.cuda.is_available() else "cpu",
     )
 
     try:
