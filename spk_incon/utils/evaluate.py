@@ -143,7 +143,7 @@ class EvaluationPipeline:
 
         return pairs
 
-    @classmethod
+    @staticmethod
     def evaluate_pairs_with_grouping(
         pairs: list[dict],
         metric_types: list[MetricType],
