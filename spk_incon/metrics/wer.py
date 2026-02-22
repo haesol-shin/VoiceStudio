@@ -223,7 +223,7 @@ class WERCalculator(BaseMetricCalculator):
             self.logger.info(f"Transcribing {len(all_paths)} unique files in batches of {batch_size}")
 
             # 2. Transcribe in batches
-            for i in tqdm(range(0, len(all_paths), batch_size), desc="Transcribing"):
+            for i in tqdm(range(0, len(all_paths), batch_size), desc="Transcribing", leave=False):
                 batch_paths = all_paths[i : i + batch_size]
                 
                 batch_audios = []
@@ -257,7 +257,7 @@ class WERCalculator(BaseMetricCalculator):
             # 3. Calculate WER for each pair
             self.logger.info(f"Calculating WER for {len(pairs)} pairs")
             results = []
-            for ref_path, syn_path in tqdm(pairs, desc="Calculating WER scores"):
+            for ref_path, syn_path in tqdm(pairs, desc="Calculating WER scores", leave=False):
                 try:
                     ref_text = transcriptions.get(ref_path, "")
                     syn_text = transcriptions.get(syn_path, "")

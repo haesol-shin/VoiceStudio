@@ -251,7 +251,7 @@ class FFECalculator(BaseMetricCalculator):
             # 2. Calculate FFE scores
             self.logger.info(f"Calculating FFE scores for {len(pairs)} pairs")
             results = []
-            for ref_path, syn_path in tqdm(pairs, desc="Calculating FFE scores"):
+            for ref_path, syn_path in tqdm(pairs, desc="Calculating FFE scores", leave=False):
                 try:
                     ref_data = f0_features.get(ref_path)
                     syn_data = f0_features.get(syn_path)

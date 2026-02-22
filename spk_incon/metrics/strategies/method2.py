@@ -115,8 +115,8 @@ class Method2Strategy(BaseGenerationStrategy):
         print(f"Method 2 completed: {total_success}/{expected_total} synthesis generated")
         return total_success > 0
 
-    def generate_batch_all(self, dataset_name: str, model_name: str) -> bool:
-        print(f"Starting Method 2 generation for {dataset_name} -> {model_name}")
+    def generate_batch_all(self, dataset_name: str, model_name: str, verbose: bool = False) -> bool:
+        if verbose: print(f"Starting Method 2 generation for {dataset_name} -> {model_name}")
 
         # Create output directories
         ref_dir, syn_dir = self.create_output_paths(dataset_name, model_name, "method2")
@@ -143,7 +143,7 @@ class Method2Strategy(BaseGenerationStrategy):
 
         # Process each reference
         for ref_idx, sample_idx in enumerate(
-            tqdm(sample_indices, desc="Processing references")
+            tqdm(sample_indices, desc="Processing references", leave=verbose)
         ):
             try:
                 # Get reference sample
@@ -209,7 +209,7 @@ class Method2Strategy(BaseGenerationStrategy):
                 self.save_metadata(set_dir, set_metadata)
 
                 total_success += set_success
-                print(f"Set {ref_idx}: {set_success}/{syn_per_ref} synthesis generated")
+                if verbose: print(f"Set {ref_idx}: {set_success}/{syn_per_ref} synthesis generated")
 
             except Exception as e:
                 print(f"Error processing reference {ref_idx}")
@@ -217,5 +217,5 @@ class Method2Strategy(BaseGenerationStrategy):
                 continue
 
         expected_total = len(sample_indices) * syn_per_ref
-        print(f"Method 2 completed: {total_success}/{expected_total} synthesis generated")
+        if verbose: print(f"Method 2 completed: {total_success}/{expected_total} synthesis generated")
         return total_success > 0

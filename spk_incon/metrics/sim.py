@@ -83,7 +83,7 @@ class SIMCalculator(BaseMetricCalculator):
 
             self.logger.info(f"Extracting embeddings for {len(all_paths)} files in batches of {batch_size}")
 
-            for i in tqdm(range(0, len(all_paths), batch_size), desc="Extracting embeddings"):
+            for i in tqdm(range(0, len(all_paths), batch_size), desc="Extracting embeddings", leave=False):
                 batch_paths = all_paths[i : i + batch_size]
                 
                 batch_audios = []
@@ -111,7 +111,7 @@ class SIMCalculator(BaseMetricCalculator):
                         embeddings[batch_paths[orig_batch_idx]] = batch_embeds[idx]
 
             self.logger.info(f"Calculating similarities for {len(pairs)} pairs")
-            for idx, (ref_path, syn_path) in tqdm(enumerate(pairs), total=len(pairs), desc="Calculating similarities"):
+            for idx, (ref_path, syn_path) in tqdm(enumerate(pairs), total=len(pairs), desc="Calculating similarities", leave=False):
                 if ref_path in embeddings and syn_path in embeddings:
                     ref_embed = embeddings[ref_path]
                     syn_embed = embeddings[syn_path]

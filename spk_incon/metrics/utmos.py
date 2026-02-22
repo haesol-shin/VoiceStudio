@@ -4,6 +4,7 @@ UTMOS calculator using UTMOSv2.
 
 import random
 from pathlib import Path
+from contextlib import redirect_stdout
 
 import numpy as np
 import torch
@@ -62,7 +63,8 @@ class UTMOSCalculator(BaseMetricCalculator):
         try:         
             orig_synthesis = kwargs.get("orig_synthesis")
             if orig_synthesis and isinstance(orig_synthesis, (Path, str)):
-                score = self.utmos_model.predict(input_path=orig_synthesis)
+                with redirect_stdout(open(os.devnull, "w")):
+                    score = self.utmos_model.predict(input_path=orig_synthesis)
             else:
                 raise MetricCalculationError("UTMOSv2 requires a file path for prediction. Use forward(synthesis=Path).")
 
@@ -77,7 +79,7 @@ class UTMOSCalculator(BaseMetricCalculator):
             # Extract synthesis paths only (UTMOS doesn't use reference)
             results = []
             self.logger.info(f"Calculating UTMOS scores for {len(pairs)} pairs")
-            for _, syn_path in tqdm(pairs, desc="Calculating UTMOS scores"):
+            for _, syn_path in tqdm(pairs, desc="Calculating UTMOS scores", leave=False):
                 # Path input is now automatically tracked as orig_synthesis in base.py
                 results.append(self(synthesis=syn_path))
             

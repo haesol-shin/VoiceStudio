@@ -22,7 +22,7 @@ class ModelConfig:
     name: str
     model_path: Path | None = None
     batch_size: int = 8
-    device: str = "cuda"
+    device: str = "cuda:0"
     additional_params: dict[str, Any] | None = None
 
     def __post_init__(self):
