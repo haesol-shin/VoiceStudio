@@ -3,10 +3,15 @@ Evaluation pipeline for synthesized audio quality assessment.
 """
 
 import json
+import random
+from itertools import combinations
 from pathlib import Path
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
+import torch
+from tqdm.auto import tqdm
 
 from ..metrics import MetricType, ModelConfig, create_calculator
 from ..metrics.presets import DatasetType, GenerationMethod, ModelType
@@ -386,7 +391,7 @@ class EvaluationPipeline:
         """Print statistics in a Markdown table format with specific ordering and proper alignment."""
         # Metric order: UTMOS, WER, COS (SIM), FFE, MCD
         # Stat order: Mean, Std, Median, Avg Std, Avg CV
-        
+
         metrics = [
             ("UTMOS", "utmos"),
             ("WER", "wer"),
@@ -394,7 +399,7 @@ class EvaluationPipeline:
             ("FFE", "ffe"),
             ("MCD", "mcd")
         ]
-        
+
         stat_keys = [
             ("Mean", "mean"),
             ("Std", "std"),
@@ -402,7 +407,7 @@ class EvaluationPipeline:
             ("Avg Std", "avg_std"),
             ("Avg CV", "avg_cv")
         ]
-        
+
         # Build data rows
         data_rows = []
         for label, metric_prefix in metrics:
@@ -416,7 +421,7 @@ class EvaluationPipeline:
                     has_data = True
                 else:
                     row_items.append("-")
-            
+
             if has_data:
                 data_rows.append(row_items)
 
@@ -430,31 +435,31 @@ class EvaluationPipeline:
             from IPython.display import display, HTML
 
             # Build HTML table
-            html = f"<h3>Evaluation Results: {method.value}</h3>"
-            html += "<table style='border-collapse: collapse; font-family: monospace;'>"
+            html_str = f"<h3>Evaluation Results: {method.value}</h3>"
+            html_str += "<table style='border-collapse: collapse; font-family: monospace;'>"
 
             # Header
-            html += "<thead><tr>"
+            html_str += "<thead><tr>"
             for i, h in enumerate(header_row):
                 align = "left" if i == 0 else "center"
-                html += f"<th style='border: 1px solid #ccc; padding: 6px 12px; text-align: {align}; background: #f0f0f0;'>{h}</th>"
-            html += "</tr></thead>"
+                html_str += f"<th style='border: 1px solid #ccc; padding: 6px 12px; text-align: {align}; background: #f0f0f0;'>{h}</th>"
+            html_str += "</tr></thead>"
 
             # Data rows
-            html += "<tbody>"
+            html_str += "<tbody>"
             for row in data_rows:
-                html += "<tr>"
+                html_str += "<tr>"
                 for i, item in enumerate(row):
                     align = "left" if i == 0 else "center"
-                    html += f"<td style='border: 1px solid #ccc; padding: 6px 12px; text-align: {align};'>{item}</td>"
-                html += "</tr>"
-            html += "</tbody></table>"
+                    html_str += f"<td style='border: 1px solid #ccc; padding: 6px 12px; text-align: {align};'>{item}</td>"
+                html_str += "</tr>"
+            html_str += "</tbody></table>"
 
-            display(HTML(html))
+            display(HTML(html_str))
         else:
             # Calculate column widths
             col_widths = [len(h) for h in header_row]
-            
+
             for row in data_rows:
                 for i, item in enumerate(row):
                     col_widths[i] = max(col_widths[i], len(item))
@@ -468,18 +473,14 @@ class EvaluationPipeline:
             header_str = "|"
             for i, item in enumerate(header_row):
                 if i == 0:
-                    # Left-align metric names
                     header_str += " " + item.ljust(col_widths[i] - 1) + "|"
                 else:
-                    # Center-align stat names
                     header_str += item.center(col_widths[i]) + "|"
             print(header_str)
 
             # Print separator
             sep_str = "|"
-            # First column left-aligned
             sep_str += " " + ("-" * (col_widths[0] - 2)) + " |"
-            # Other columns center-aligned
             for w in col_widths[1:]:
                 sep_str += ":" + ("-" * (w - 2)) + ":|"
             print(sep_str)
@@ -489,10 +490,8 @@ class EvaluationPipeline:
                 row_str = "|"
                 for i, item in enumerate(row):
                     if i == 0:
-                        # Left-align metric names
                         row_str += " " + item.ljust(col_widths[i] - 1) + "|"
                     else:
-                        # Center-align numbers
                         row_str += item.center(col_widths[i]) + "|"
                 print(row_str)
 
@@ -503,32 +502,418 @@ class EvaluationPipeline:
         model_type: ModelType,
         output_dir: Path = Path("results")
     ) -> None:
-        """Save evaluation results to CSV files.
-
-        Args:
-            results: Evaluation results
-            dataset_type: Dataset type
-            model_type: Model type
-            output_dir: Output directory
-        """
+        """Save evaluation results to CSV files."""
         output_dir.mkdir(parents=True, exist_ok=True)
 
         for method, stats in results.items():
             if not stats:
                 continue
 
-            # Convert to DataFrame
             df = pd.DataFrame([stats])
             df.insert(0, 'dataset', dataset_type.value)
             df.insert(1, 'model', model_type.value)
             df.insert(2, 'method', method.value)
 
-            # Save to CSV
             filename = f"{dataset_type.value}_{model_type.value}_{method.value}_results.csv"
             filepath = output_dir / filename
             df.to_csv(filepath, index=False)
 
             print(f"Saved results to {filepath}")
+
+
+class Evaluator:
+    """Flexible evaluator using metadata files"""
+
+    _DEFAULT_METRICS = [
+        MetricType.UTMOS, MetricType.WER, MetricType.SIM,
+    ]
+
+    def __init__(
+        self,
+        base_dir: Union[str, Path] = "results",
+        dataset_name: str = "libritts",
+        device: str = "cuda",
+        seed: int = 42,
+        batch_size: int = 16,
+        syn_base_dir: Optional[Union[str, Path]] = None,
+    ) -> None:
+        self.base_dir = Path(base_dir)
+        self.dataset_name = dataset_name
+        self.device = device
+        self.seed = seed
+        self.batch_size = batch_size
+        self._syn_base = Path(syn_base_dir) if syn_base_dir else None
+        self._ckpt_dir = self.base_dir / ".checkpoints"
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _fix_seed(self) -> None:
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.seed)
+
+    def _syn_dir(self, model_name: str, exp: str) -> Path:
+        if self._syn_base is not None:
+            return self._syn_base / model_name / exp
+        return self.base_dir / "syn" / self.dataset_name / model_name / exp
+
+    def _ckpt_path(self, model_name: str, exp: str) -> Path:
+        return self._ckpt_dir / f"{model_name}_{exp}.json"
+
+    # ------------------------------------------------------------------
+    # Metadata loading
+    # ------------------------------------------------------------------
+
+    def load_pairs(self, model_name: str, exp: str) -> List[dict]:
+        """Load evaluation pairs from ``metadata.json``."""
+        meta_path = self._syn_dir(model_name, exp) / "metadata.json"
+        if not meta_path.exists():
+            raise FileNotFoundError(
+                f"Metadata file not found: {meta_path}\n"
+                f"Run synthesis first, or check that the model/exp path is correct."
+            )
+
+        with open(meta_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        raw_pairs = data.get("pairs", data)
+        if not raw_pairs:
+            raise RuntimeError(f"Metadata at {meta_path} contains no pairs.")
+
+        pairs = []
+        for entry in raw_pairs:
+            if "ref_path" not in entry or "syn_path" not in entry or "index" not in entry:
+                raise KeyError(
+                    f"Metadata entry missing required fields (ref_path / syn_path / index): {entry}"
+                )
+            pairs.append({
+                "ref_path":    Path(entry["ref_path"]),
+                "syn_path":    Path(entry["syn_path"]),
+                "ref_id":      str(entry.get("ref_id") or entry["index"]),
+                "target_text": entry.get("target_text"),
+                "speaker_id":  entry.get("speaker_id"),
+            })
+
+        print(f"[Evaluator] Loaded {len(pairs)} pairs from {meta_path}")
+        return pairs
+
+    # ------------------------------------------------------------------
+    # Checkpoint helpers
+    # ------------------------------------------------------------------
+
+    def _load_checkpoint(self, model_name: str, exp: str) -> dict:
+        p = self._ckpt_path(model_name, exp)
+        if p.exists():
+            with open(p, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {}
+
+    def _save_checkpoint(self, model_name: str, exp: str, grouped: dict) -> None:
+        self._ckpt_dir.mkdir(parents=True, exist_ok=True)
+        serialisable = {
+            mt.value: {rid: scores for rid, scores in ref_groups.items()}
+            for mt, ref_groups in grouped.items()
+        }
+        with open(self._ckpt_path(model_name, exp), "w", encoding="utf-8") as f:
+            json.dump(serialisable, f)
+
+    def clear_checkpoint(self, model_name: str, exp: str) -> None:
+        p = self._ckpt_path(model_name, exp)
+        if p.exists():
+            p.unlink()
+            print(f"[Evaluator] Checkpoint cleared: {p}")
+        else:
+            print(f"[Evaluator] No checkpoint to clear for {model_name}/{exp}")
+
+    # ------------------------------------------------------------------
+    # Core metric computation
+    # ------------------------------------------------------------------
+
+    def _run_metrics(
+        self,
+        pairs: List[dict],
+        metrics: List[MetricType],
+        model_name: str,
+        exp: str,
+        resume: bool = False,
+    ) -> dict:
+        self._fix_seed()
+
+        grouped: dict = {}
+        if resume:
+            raw_ckpt = self._load_checkpoint(model_name, exp)
+            if raw_ckpt:
+                for mt in metrics:
+                    if mt.value in raw_ckpt:
+                        grouped[mt] = raw_ckpt[mt.value]
+                        print(f"[Evaluator] Resumed {mt.value} from checkpoint "
+                              f"({sum(len(v) for v in grouped[mt].values())} scores).")
+
+        for metric_type in metrics:
+            if metric_type in grouped:
+                print(f"[Evaluator] Skipping {metric_type.value} (already in checkpoint).")
+                continue
+
+            print(f"\n[Evaluator] Calculating {metric_type.value} ...")
+            config = ModelConfig(
+                name=metric_type.value,
+                batch_size=self.batch_size,
+                device=self.device,
+                additional_params={"seed": self.seed},
+            )
+
+            with create_calculator(metric_type, config) as calc:
+                is_no_ref = metric_type in {MetricType.UTMOS}
+                is_wer    = metric_type == MetricType.WER
+
+                if is_no_ref:
+                    unique_syn = sorted({p["syn_path"] for p in pairs})
+                    calc_pairs = [(p, p) for p in unique_syn]
+                    valid = calc.validate_audio_files(calc_pairs)
+                    raw_scores = calc.calculate_batch_optimized(valid)
+                    path_to_score = {valid[i][1]: raw_scores[i] for i in range(len(valid))}
+
+                    syn_to_ref: dict = {}
+                    for pi in pairs:
+                        syn_to_ref.setdefault(pi["syn_path"], pi["ref_id"])
+
+                    ref_scores: dict = {}
+                    for syn_path, score in path_to_score.items():
+                        if score is not None and not np.isnan(float(score)):
+                            rid = syn_to_ref.get(syn_path)
+                            if rid is not None:
+                                ref_scores.setdefault(rid, []).append(float(score))
+                    grouped[metric_type] = ref_scores
+
+                elif is_wer:
+                    audio_pairs = [(p["ref_path"], p["syn_path"]) for p in pairs]
+                    valid = calc.validate_audio_files(audio_pairs)
+                    pair_to_target = {
+                        (pi["ref_path"], pi["syn_path"]): pi.get("target_text")
+                        for pi in pairs
+                    }
+
+                    ref_scores = {}
+                    for ref_path, syn_path in valid:
+                        tgt = pair_to_target.get((ref_path, syn_path))
+                        score = calc(synthesis=syn_path, reference=ref_path, target_text=tgt)
+                        if score is not None and not np.isnan(float(score)):
+                            score = float(min(1.0, max(0.0, score)))
+                            rid = next(
+                                (pi["ref_id"] for pi in pairs
+                                 if pi["ref_path"] == ref_path and pi["syn_path"] == syn_path),
+                                None,
+                            )
+                            if rid is not None:
+                                ref_scores.setdefault(rid, []).append(score)
+                    grouped[metric_type] = ref_scores
+
+                else:
+                    audio_pairs = [(p["ref_path"], p["syn_path"]) for p in pairs]
+                    valid = calc.validate_audio_files(audio_pairs)
+                    raw_scores = calc.calculate_batch_optimized(valid)
+
+                    ref_scores = {}
+                    pair_to_score = {valid[i]: raw_scores[i] for i in range(len(valid))}
+                    for pi in pairs:
+                        key = (pi["ref_path"], pi["syn_path"])
+                        score = pair_to_score.get(key)
+                        if score is not None and not np.isnan(float(score)):
+                            ref_scores.setdefault(pi["ref_id"], []).append(float(score))
+                    grouped[metric_type] = ref_scores
+
+            n = sum(len(v) for v in grouped[metric_type].values())
+            print(f"  → {n} scores collected")
+
+            self._save_checkpoint(model_name, exp, grouped)
+
+        return grouped
+
+    # ------------------------------------------------------------------
+    # Statistics
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _flatten_stats(grouped: dict) -> dict:
+        stats: dict = {}
+        for metric_type, ref_groups in grouped.items():
+            all_scores = [s for v in ref_groups.values() for s in v]
+            if not all_scores:
+                continue
+            k = metric_type.value
+            stats[f"{k}_mean"]   = float(np.mean(all_scores))
+            stats[f"{k}_std"]    = float(np.std(all_scores))
+            stats[f"{k}_median"] = float(np.median(all_scores))
+        return stats
+
+    # ------------------------------------------------------------------
+    # SIM pairwise helper (exp2 only)
+    # ------------------------------------------------------------------
+
+    def _evaluate_sim_intra(self, pairs: list[dict]) -> dict:
+        """Pairwise intra-group speaker consistency for exp2.
+
+        For each ref_id group:
+            1. Extract ECAPA embeddings for all syn audio
+            2. Compute cosine similarity for all N*(N-1)/2 pairs
+            3. Report mean pairwise sim (↑ better)
+
+        Groups with fewer than 2 valid embeddings are excluded.
+        """
+        groups: dict[str, list[Path]] = {}
+        for p in pairs:
+            groups.setdefault(p["ref_id"], []).append(p["syn_path"])
+
+        config = ModelConfig(
+            name="sim",
+            batch_size=self.batch_size,
+            device=self.device,
+            additional_params={"seed": self.seed},
+        )
+
+        group_means: list[float] = []
+
+        with create_calculator(MetricType.SIM, config) as calc:
+            all_syn_paths = [p for paths in groups.values() for p in paths]
+            embeddings = calc.extract_embeddings(all_syn_paths)
+
+        for ref_id, syn_paths in tqdm(groups.items(), desc="Computing pairwise SIM", leave=False):
+            group_embeds = [
+                embeddings[p] for p in syn_paths if p in embeddings
+            ]
+            if len(group_embeds) < 2:
+                continue
+
+            # All pairwise cosine similarities (embeddings already L2-normalized)
+            sims = [
+                torch.dot(group_embeds[i], group_embeds[j]).item()
+                for i, j in combinations(range(len(group_embeds)), 2)
+            ]
+            group_means.append(float(np.mean(sims)))
+
+        stats: dict = {}
+        if group_means:
+            stats["sim_intra_mean"] = float(np.mean(group_means))  # ↑ better
+            stats["sim_num_groups"] = len(group_means)
+
+        return stats
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def evaluate_exp1(
+        self,
+        model_name: str,
+        metrics: Optional[List[MetricType]] = None,
+        resume: bool = False,
+    ) -> pd.DataFrame:
+        if metrics is None:
+            metrics = list(self._DEFAULT_METRICS)
+
+        pairs = self.load_pairs(model_name, "exp1")
+        grouped = self._run_metrics(pairs, metrics, model_name, "exp1", resume=resume)
+        stats = self._flatten_stats(grouped)
+
+        df = pd.DataFrame([stats])
+        df.insert(0, "model", model_name)
+        df.insert(1, "exp", "exp1")
+        return df
+
+    def evaluate_exp2(
+        self,
+        model_name: str,
+        metrics: Optional[List[MetricType]] = None,
+        resume: bool = False,
+    ) -> pd.DataFrame:
+        if metrics is None:
+            metrics = list(self._DEFAULT_METRICS)
+
+        pairs = self.load_pairs(model_name, "exp2")
+
+        scalar_metrics = [m for m in metrics if m != MetricType.SIM]
+        grouped = self._run_metrics(
+            pairs, scalar_metrics, model_name, "exp2", resume=resume
+        )
+
+        stats: dict = {}
+
+        # ── Scalar metrics (UTMOS, WER) ───────────────────────────────
+        for metric_type, ref_groups in grouped.items():
+            all_scores = [s for v in ref_groups.values() for s in v]
+            if not all_scores:
+                continue
+            k = metric_type.value
+            stats[f"{k}_mean"]   = float(np.mean(all_scores))
+            stats[f"{k}_std"]    = float(np.std(all_scores))
+            stats[f"{k}_median"] = float(np.median(all_scores))
+
+            group_stds = []
+            for scores in ref_groups.values():
+                if len(scores) > 1:
+                    group_stds.append(float(np.std(scores, ddof=1)))
+
+            if group_stds:
+                stats[f"{k}_avg_std"] = float(np.mean(group_stds))
+
+        # ── SIM: pairwise consistency ─────────────────────────────────
+        if MetricType.SIM in metrics:
+            sim_stats = self._evaluate_sim_intra(pairs)
+            stats.update(sim_stats)
+
+        df = pd.DataFrame([stats])
+        df.insert(0, "model", model_name)
+        df.insert(1, "exp", "exp2")
+        return df
+
+    def compare_models(
+        self,
+        model_names: List[str],
+        exp: str = "exp1",
+        metrics: Optional[List[MetricType]] = None,
+        resume: bool = False,
+    ) -> pd.DataFrame:
+        frames = []
+        for model_name in model_names:
+            print(f"\n{'='*60}")
+            print(f"  Model: {model_name}  |  Exp: {exp}")
+            print(f"{'='*60}")
+            try:
+                if exp == "exp1":
+                    df = self.evaluate_exp1(model_name, metrics, resume=resume)
+                elif exp == "exp2":
+                    df = self.evaluate_exp2(model_name, metrics, resume=resume)
+                else:
+                    raise ValueError(f"Unknown exp: {exp!r}. Use 'exp1' or 'exp2'.")
+                frames.append(df)
+            except FileNotFoundError as e:
+                print(f"[SKIP] {model_name}: {e}")
+
+        if not frames:
+            return pd.DataFrame()
+        return pd.concat(frames, ignore_index=True)
+
+    def save_results(
+        self,
+        df: pd.DataFrame,
+        output_path: Optional[Union[str, Path]] = None,
+    ) -> Path:
+        if df.empty:
+            raise ValueError("DataFrame is empty — nothing to save.")
+
+        if output_path is None:
+            exp = df["exp"].iloc[0] if "exp" in df.columns else "results"
+            output_path = self.base_dir / f"eval_{self.dataset_name}_{exp}.csv"
+
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(output_path, index=False)
+        print(f"[Evaluator] Saved → {output_path}")
+        return output_path
 
 
 def main():
@@ -543,7 +928,6 @@ def main():
         methods=methods_to_run
     )
 
-    # Save results
     evaluator.save_results_to_csv(
         results,
         DatasetType.LIBRITTS,
