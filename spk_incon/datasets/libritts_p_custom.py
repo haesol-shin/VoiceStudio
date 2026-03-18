@@ -42,6 +42,9 @@ class LIBRITTS_P_Custom(Dataset):
         min_group_size (int, optional): Minimum number of samples required per speaker group.
             Groups with fewer samples than this threshold are excluded.
             (default: ``10``)
+        use_generated_prompt (bool, optional): If True, uses self-generated style and
+            speaker prompts instead of the original LibriTTS-P dataset prompts.
+            (default: ``False``)
         transform (Callable, optional): A function/transform that takes in a sample
             dictionary and returns a transformed version. (default: ``None``)
         download (bool, optional): Whether to download the dataset if not found at root.
@@ -55,7 +58,8 @@ class LIBRITTS_P_Custom(Dataset):
         url: str = "train-clean-100",
         annotator: str = "df1",
         max_z_score: float = 3.5,
-        min_group_size: int = 10,
+        min_group_size: int = 0,
+        use_generated_prompt: bool = False,
         transform: Optional[Callable] = None,
         download: bool = False,
         force_reload: bool = False,
@@ -65,6 +69,7 @@ class LIBRITTS_P_Custom(Dataset):
         self.annotator = annotator
         self.max_z_score = max_z_score
         self.min_group_size = min_group_size
+        self.use_generated_prompt = use_generated_prompt
         self.transform = transform
         self.download = download
         self.epoch = 0
@@ -73,10 +78,52 @@ class LIBRITTS_P_Custom(Dataset):
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
         self.data_source = self._load_or_create_dataset(force_reload)
-        self.style_map, self.speaker_map = load_libritts_p_prompts(self.root, self.annotator)
+        if self.use_generated_prompt:
+            self.style_map, self.speaker_map = self._load_generated_prompts()
+        else:
+            self.style_map, self.speaker_map = load_libritts_p_prompts(self.root, self.annotator)
         
         self._filter_outliers()
         self._filter_min_group_size()
+
+    def _load_generated_prompts(self):
+        """Loads generated style and speaker prompts from LibriTTS_P directory.
+
+        Returns:
+            Tuple:
+                - Dict[str, Tuple[List[str], str]]: Mapping from utterance ID to
+                  (generated style prompts, style_key).
+                - Dict[Tuple[int, str], List[str]]: Mapping from (speaker_id, style_key)
+                  to generated speaker descriptions.
+        """
+        libritts_p_dir = self.root / "LibriTTS_P"
+
+        style_gen_path = libritts_p_dir / "style_prompts_generated.csv"
+        style_gen_df = pd.read_csv(
+            style_gen_path, sep='|', header=None, names=['style_key', 'description']
+        )
+        style_by_key = {
+            row.style_key: [row.description]
+            for row in style_gen_df.itertuples(index=False)
+        }
+
+        paths = get_libritts_p_metadata_paths(self.root)
+        metadata_df = pd.read_csv(paths["metadata"])
+        style_map = {
+            row.item_name: (style_by_key.get(row.style_prompt_key, ["Unknown Style"]), row.style_prompt_key)
+            for row in metadata_df.itertuples(index=False)
+        }
+
+        gen_spk_path = libritts_p_dir / f"generated_{self.annotator}.csv"
+        gen_spk_df = pd.read_csv(
+            gen_spk_path, sep='|', header=None, names=['speaker_id', 'style_key', 'description']
+        )
+        speaker_map = {}
+        for row in gen_spk_df.itertuples(index=False):
+            key = (int(row.speaker_id), row.style_key)
+            speaker_map.setdefault(key, []).append(row.description)
+
+        return style_map, speaker_map
 
     def _load_or_create_dataset(self, force_reload: bool) -> HFDataset:
         """Loads the dataset from disk or triggers creation if missing.
@@ -304,10 +351,13 @@ class LIBRITTS_P_Custom(Dataset):
         
         waveform, sr = self._load_audio(item['audio_path'])
         
-        style_variants, _ = self.style_map.get(item['utterance_id'], (["Unknown Style"], None))
-        
+        style_variants, style_key_or_spk = self.style_map.get(item['utterance_id'], (["Unknown Style"], None))
+
         speaker_id = int(item['speaker_id'])
-        speaker_variants = self.speaker_map.get(speaker_id, ["Unknown Speaker"]) if self.speaker_map else ["No Annotator"]
+        if self.use_generated_prompt:
+            speaker_variants = self.speaker_map.get((speaker_id, style_key_or_spk), ["Unknown Speaker"])
+        else:
+            speaker_variants = self.speaker_map.get(speaker_id, ["Unknown Speaker"]) if self.speaker_map else ["No Annotator"]
         
         combined_prompt = self._mix_prompts(
             style_variants, 
