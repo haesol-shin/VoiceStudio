@@ -225,4 +225,5 @@ results/
 results-*/
 wandb/
 
-!data/libritts_p_curated_train_clean_100.csv
+!data/LibriTTS_P/
+!data/LibriTTS_P/**
