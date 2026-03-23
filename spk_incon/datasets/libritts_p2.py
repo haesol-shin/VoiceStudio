@@ -16,7 +16,7 @@ class LIBRITTSP(LIBRITTS):
     """LibriTTS-P dataset loader that reads from Hugging Face."""
 
     def __init__(self, config, **kwargs):
-        self.split = kwargs.get("split", "test.clean.100")
+        self.split = kwargs.get("split", "test.clean")
         self.root_dir = Path(kwargs.get("root_dir", "./data"))
 
         try:
