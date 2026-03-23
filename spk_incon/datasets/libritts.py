@@ -17,7 +17,7 @@ class LibriTTSSynthesisDataset(BaseSynthesisDataset):
 
     def __init__(self, config, **kwargs):
         super().__init__(config)
-        self.split = kwargs.get("split", "test.clean")
+        self.split = kwargs.get("split", "test.other")
         self.root_dir = Path(kwargs.get("root_dir", "./data"))
         self.dataset = None
         self.temp_audio_dir = self.root_dir / "temp_libritts_audio"
