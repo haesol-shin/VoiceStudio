@@ -10,7 +10,7 @@ Install required apt packages
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y protobuf-compiler libprotobuf-dev
+sudo apt-get install -y sox ffmpeg protobuf-compiler libprotobuf-dev
 ```
 
 Install uv
