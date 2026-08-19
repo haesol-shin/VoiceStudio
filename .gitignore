@@ -29,8 +29,8 @@ MANIFEST
 # PyInstaller
 #   Usually these files are written by a python script from a template
 #   before PyInstaller builds the exe, so as to inject date/other infos into it.
-#*.manifest
-#*.spec
+*.manifest
+*.spec
 
 # Installer logs
 pip-log.txt
@@ -98,7 +98,7 @@ ipython_config.py
 #   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
-#uv.lock
+# uv.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -186,7 +186,7 @@ cython_debug/
 #   be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #   and can be added to the global gitignore or merged into this file.  For a more nuclear
 #   option (not recommended) you can uncomment the following to ignore the entire idea folder.
-.idea/
+# .idea/
 
 # Abstra
 #   Abstra is an AI-powered process automation framework.
@@ -200,6 +200,8 @@ cython_debug/
 #   and can be added to the global gitignore or merged into this file. However, if you prefer, 
 #   you could uncomment the following to ignore the entire vscode folder
 # .vscode/
+# Temporary file for partial code execution
+tempCodeRunnerFile.py
 
 # Ruff stuff:
 .ruff_cache/
@@ -216,8 +218,10 @@ __marimo__/
 .streamlit/secrets.toml
 
 # PyTorch
-data/*
+data/
 .data/
+!data/LibriTTS_P/
+!data/LibriTTS_P/**
 *.mp3
 *.wav
 *.csv
@@ -225,5 +229,6 @@ results/
 results-*/
 wandb/
 
-!data/LibriTTS_P/
-!data/LibriTTS_P/**
+# AI Agents
+.claude
+.agents
